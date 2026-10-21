@@ -18,7 +18,7 @@ export function mount({ main, desk, files, privateNote }) {
     main.append(box);
 
     desk.innerHTML = `<h2>The text</h2>
-      <p>${plural(pages.length, "page")}, about ${plural(words, "word")}.${empty ? ` ${plural(empty, "page")} had no text: probably scanned.` : ""}</p>
+      <p>${plural(pages.length, "page")}, about ${plural(words, "word")}.${empty ? ` ${plural(empty, "page")} had no text: probably scanned. <a href="#/searchable">Make searchable</a> can read ${empty === 1 ? "it" : "them"}.` : ""}</p>
       <button type="button" class="pill go copy">Copy all</button>
       <button type="button" class="pill ghost save" style="width: 100%; margin-top: 10px">Save as .txt</button>
       <p class="status" role="status"></p>${privateNote()}`;
