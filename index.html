@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docket: every PDF tool, on your device</title>
+<meta name="description" content="Merge, split, sign, redact, compress and convert PDFs in your browser. Nothing is uploaded, no account, no limits.">
+<meta name="theme-color" content="#EEF1EC">
+<link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,600&family=Figtree:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="css/docket.css">
+<script>
+  // pick the theme before the page paints, so night mode doesn't flash white
+  (function () {
+    var saved = null;
+    try { saved = localStorage.getItem("docket-theme"); } catch (e) {}
+    var night = saved ? saved === "night" : matchMedia("(prefers-color-scheme: dark)").matches;
+    if (night) document.documentElement.setAttribute("data-theme", "night");
+  })();
+</script>
+</head>
+<body>
+<header class="wrap rail">
+  <a class="brand" href="#">
+    <svg class="art" width="30" height="30" viewBox="0 0 30 30" stroke-width="1.6" aria-hidden="true"><path d="M5 12h20M7 12v12M15 12v12M23 12v12M4 24h22M15 4v8M11 7l4-3 4 3"/></svg>
+    <span>Docket</span>
+  </a>
+  <nav aria-label="Main">
+    <a href="#tools">All tools</a>
+    <a href="#harbour" class="wide">How it stays private</a>
+    <button type="button" class="theme-toggle" id="theme" aria-label="Switch between day and night">
+      <svg class="art moon" viewBox="0 0 24 24" stroke-width="1.6" aria-hidden="true"><path d="M20 14.5A8 8 0 0 1 9.5 4a8 8 0 1 0 10.5 10.5z"/></svg>
+      <svg class="art sun" viewBox="0 0 24 24" stroke-width="1.6" aria-hidden="true"><path d="M8 12a4 4 0 1 0 8 0a4 4 0 1 0-8 0M12 2v2M12 20v2M2 12h2M20 12h2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M19.1 4.9l-1.4 1.4M6.3 17.7l-1.4 1.4"/></svg>
+    </button>
+  </nav>
+</header>
+
+<main id="app" class="wrap" tabindex="-1"></main>
+
+<footer class="wrap foot">
+  <span>Docket, by <a href="https://lekanlawal1.github.io/portfolio-site/">Lekan Lawal</a></span>
+  <span>Your files never leave this device. <a href="https://github.com/lekanlawal1/docket">Source on GitHub</a></span>
+</footer>
+
+<script src="vendor/qrcode/qrcode.js"></script>
+<script type="module" src="js/main.js"></script>
+</body>
+</html>
