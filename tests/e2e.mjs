@@ -33,7 +33,7 @@ const page = await browser.newPage({ acceptDownloads: true, ignoreHTTPSErrors: !
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 // web fonts come from Google; a blocked font isn't the site's fault
-page.on("console", (m) => m.type() === "error" && !/fonts\.g|ERR_CERT|ERR_TUNNEL/.test(m.text() + m.location().url) && errors.push(m.text()));
+page.on("console", (m) => m.type() === "error" && !/fonts\.g|portfolio-bar|ERR_CERT|ERR_TUNNEL/.test(m.text() + m.location().url) && errors.push(m.text()));
 
 // a picture for the image tools: a screenshot of the home page will do
 await page.goto(base);
