@@ -13,7 +13,7 @@ Most free PDF sites upload your file to their server to do something your own co
 | Pier | Tools |
 | --- | --- |
 | Organise | Merge, Split, Organise pages, Extract pages |
-| Convert | PDF to JPG, Images to PDF, PDF to text, PDF to Word *(soon)* |
+| Convert | PDF to JPG, Images to PDF, PDF to text, PDF to Word |
 | Edit & sign | Sign, Fill a form, Page numbers, Watermark |
 | Protect | Redact, Remove metadata, Password |
 | Shrink | Compress PDF, Grayscale |
@@ -28,6 +28,7 @@ Most free PDF sites upload your file to their server to do something your own co
 - **The summary doesn't use AI.** It picks the sentences that best represent the document from the document itself, so it can't invent anything. It's a quick way in, not a replacement for reading.
 - **Passwords use AES-256,** and the locked file is opened twice before you get it: once without the password (it must refuse) and once with it (it must open). Print and copy restrictions are honoured by most PDF apps but aren't real locks, and the page says so.
 - **Make searchable doesn't change how the page looks.** The words it reads go behind the scan as invisible text, the way scanners with built-in OCR do it. It reads English print; handwriting and blurry photos come out poorly, and it flags pages it was unsure about.
+- **PDF to Word rebuilds structure, not layout.** A PDF only stores where each piece of text goes, so Docket works out lines, paragraphs, headings, lists, bold and italic from positions and fonts, drops repeated headers, footers and page numbers, and reads two-column pages column by column. Pictures aren't carried over and tables come out as tab-separated text. There's a preview so you can see what you'll get before saving.
 - **Signatures are pictures of a signature,** like signing a printout. They aren't certificate-based digital signatures.
 
 ## Running it locally
@@ -72,7 +73,7 @@ js/tools.js          the list of piers and tools
 js/tools/*.js        one module per tool: exports `intro` and `mount()`
 js/pdf.js            loading, drawing and rasterising PDFs
 js/ui.js             small DOM helpers shared by the tools
-js/ranges.js, zip.js, text.js   pure logic, unit tested in Node
+js/ranges.js, zip.js, text.js, layout.js, docx.js   pure logic, unit tested in Node
 ```
 
 ## Credits
