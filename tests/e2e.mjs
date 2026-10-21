@@ -8,7 +8,7 @@ import { makeFixtures } from "./fixtures.mjs";
 
 const { chromium } = await import(process.env.PW || "playwright");
 const root = new URL("..", import.meta.url).pathname;
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm" };
 const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path.endsWith("/")) path += "index.html";
@@ -49,6 +49,8 @@ async function check(name, fn) {
 }
 
 async function open(id, files) {
+  // going to the same hash twice doesn't reload the tool, so start from home each time
+  await page.goto(base);
   await page.goto(base + "#/" + id);
   await page.waitForSelector(".workbench");
   if (files) await page.locator(".main .dock input").first().setInputFiles(files);
@@ -224,6 +226,31 @@ await check("paper", async () => {
   await open("paper");
   await page.fill("[name=pages]", "3");
   expect((await readPdf((await save()).data)).pages === 3, "wrong page count");
+});
+
+await check("password: lock, refuse a wrong password, unlock", async () => {
+  await open("password", [lease]);
+  await page.fill("[name=pw]", "harbour light");
+  await page.fill("[name=pw2]", "harbour light");
+  const locked = await save(".desk .lock");
+  await goodStatus();
+  const needsPassword = await page.evaluate(async (b64) => {
+    const { openForView } = await import("/js/pdf.js");
+    try { await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))); return false; }
+    catch (e) { return e.name === "PasswordException"; }
+  }, locked.data.toString("base64"));
+  expect(needsPassword, "locked file opened without a password");
+
+  const lockedPath = join(fx, "lease-locked.pdf");
+  await (await import("node:fs/promises")).writeFile(lockedPath, locked.data);
+  await open("password", [lockedPath]);
+  await page.waitForSelector("[data-for=unlock]:not([hidden])");
+  await page.fill("[name=current]", "wrong");
+  await page.click(".desk .unlock");
+  await page.waitForSelector(".desk .status.bad");
+  await page.fill("[name=current]", "harbour light");
+  const out = await readPdf((await save(".desk .unlock")).data);
+  expect(out.texts[0].includes("Harbour Road"), "unlocked text missing");
 });
 
 await check("tools that aren't built say so", async () => {

@@ -78,7 +78,7 @@ export async function busy(button, statusEl, label, job) {
 
 export function friendly(err) {
   const m = String(err?.message || err);
-  if (/encrypt|password/i.test(m)) return "This PDF is password-protected. Remove the password first, then try again.";
+  if (/encrypt|password/i.test(m)) return "This PDF is password-protected. Unlock it with the Password tool first, then try again.";
   if (/Invalid PDF|No PDF header|parse/i.test(m)) return "That file doesn't look like a working PDF. Try opening it and saving a fresh copy.";
   return "Something went wrong: " + m;
 }

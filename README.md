@@ -15,7 +15,7 @@ Most free PDF sites upload your file to their server to do something your own co
 | Organise | Merge, Split, Organise pages, Extract pages |
 | Convert | PDF to JPG, Images to PDF, PDF to text, PDF to Word *(soon)* |
 | Edit & sign | Sign, Fill a form, Page numbers, Watermark |
-| Protect | Redact, Remove metadata, Password *(soon)* |
+| Protect | Redact, Remove metadata, Password |
 | Shrink | Compress PDF, Grayscale |
 | Read | Quick summary, Find dates & amounts, Make searchable *(soon)* |
 | Images & extras | Resize image, Compress image, QR code, Printable paper |
@@ -26,6 +26,7 @@ Most free PDF sites upload your file to their server to do something your own co
 - **Some tools turn pages into images.** Redact (only the pages you mark), Grayscale and the stronger Compress levels do this. Text on those pages can't be selected afterwards, and each tool says so before you run it.
 - **Compress won't hand you a bigger file.** If the result isn't smaller, it tells you instead of downloading it.
 - **The summary doesn't use AI.** It picks the sentences that best represent the document from the document itself, so it can't invent anything. It's a quick way in, not a replacement for reading.
+- **Passwords use AES-256,** and the locked file is opened twice before you get it: once without the password (it must refuse) and once with it (it must open). Print and copy restrictions are honoured by most PDF apps but aren't real locks, and the page says so.
 - **Signatures are pictures of a signature,** like signing a printout. They aren't certificate-based digital signatures.
 
 ## Running it locally
@@ -57,8 +58,9 @@ Plain HTML, CSS and JavaScript modules. No framework.
 - [pdf-lib](https://pdf-lib.js.org/) edits and creates PDFs.
 - [PDF.js](https://mozilla.github.io/pdf.js/) draws pages and reads their text.
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) makes QR codes.
+- [qpdf](https://github.com/qpdf/qpdf), compiled to WebAssembly by [qpdf-wasm](https://github.com/neslinesli93/qpdf-wasm), adds and removes passwords. It's only downloaded when the Password tool is used.
 
-All three are vendored in `vendor/`, with their licences, so the site works offline once loaded and doesn't depend on a CDN.
+All of them are vendored in `vendor/`, with their licences, so the site works offline once loaded and doesn't depend on a CDN.
 
 ```
 index.html
