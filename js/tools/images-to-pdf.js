@@ -1,6 +1,7 @@
 import { h, esc, dock, download, bytes, plural, busy, status } from "../ui.js";
 import { svg } from "../icons.js";
 import { lib } from "../pdf.js";
+import { openImage } from "../images.js";
 
 export const intro = "Photos, scans and screenshots into one PDF, one image per page.";
 
@@ -12,8 +13,7 @@ async function asEmbeddable(file) {
   const raw = new Uint8Array(await file.arrayBuffer());
   if (file.type === "image/jpeg") return { kind: "jpg", data: raw };
   if (file.type === "image/png") return { kind: "png", data: raw };
-  const bitmap = await createImageBitmap(file).catch(() => null);
-  if (!bitmap) throw new Error(`${file.name} can't be read by this browser${/heic|heif/i.test(file.name) ? " (HEIC photos only open in Safari; export it as JPG first)" : ""}.`);
+  const bitmap = await openImage(file);
   const canvas = Object.assign(document.createElement("canvas"), { width: bitmap.width, height: bitmap.height });
   const ctx = canvas.getContext("2d");
   ctx.fillStyle = "#fff";
@@ -26,8 +26,8 @@ async function asEmbeddable(file) {
 export function mount({ main, desk, files, privateNote }) {
   let list = [];
   const lineup = h(`<ol class="lineup"></ol>`);
-  const more = dock({ accept: "image/*", multiple: true, small: true, title: "Add images", onFiles: add });
-  main.append(dock({ accept: "image/*", multiple: true, title: "Drop your images", hint: "JPG, PNG, WebP, GIF. You can reorder them next.", onFiles: add }));
+  const more = dock({ accept: "image/*,.heic,.heif", multiple: true, small: true, title: "Add images", onFiles: add });
+  main.append(dock({ accept: "image/*,.heic,.heif", multiple: true, title: "Drop your images", hint: "JPG, PNG, WebP, iPhone photos (HEIC). You can reorder them next.", onFiles: add }));
 
   desk.innerHTML = `<h2>Page setup</h2><p class="summary">Add some images.</p>
     <label class="field">Page size<select name="size"><option value="fit">Same as each image</option><option value="letter">Letter</option><option value="a4">A4</option></select></label>
