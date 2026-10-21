@@ -22,14 +22,65 @@ export function mount({ main, desk, files, privateNote }) {
     desk.querySelector(".reset").onclick = () => { order = [...Array(view.numPages).keys()].map((i) => ({ src: i, turn: 0 })); draw(); };
 
     const grid = h(`<div class="pages"></div>`);
-    main.append(h(`<p style="margin-top: 0; color: var(--muted); font-size: 14px">Drag a page to move it, or use the buttons under each one.</p>`), grid);
+    main.append(h(`<p style="margin-top: 0; color: var(--muted); font-size: 14px">Drag a page to move it (on a phone, hold it first), or use the buttons under each one.</p>`), grid);
     await thumbnails(document.createElement("div"), view, (i, canvas) => { canvases[i] = canvas; return document.createElement("i"); });
 
     let dragFrom = null;
+    function moveTo(from, to) {
+      if (from === to) return;
+      const [moved] = order.splice(from, 1);
+      order.splice(to, 0, moved);
+      draw();
+    }
+
+    // Touch screens don't do drag and drop, and a finger drag means scroll. So: hold a page for
+    // a moment to pick it up, then slide it onto another. A quick swipe still scrolls.
+    let held = null;
+    const clearMarks = () => grid.querySelectorAll(".drop-here").forEach((c) => c.classList.remove("drop-here"));
+    grid.addEventListener("touchstart", (e) => {
+      const card = e.target.closest(".page-card");
+      if (!card || e.target.closest("button") || e.touches.length > 1) return;
+      const t = e.touches[0];
+      held = { card, from: Number(card.dataset.at), x: t.clientX, y: t.clientY, active: false };
+      held.timer = setTimeout(() => {
+        held.active = true;
+        card.classList.add("dragging", "lifted");
+        navigator.vibrate?.(15);
+      }, 350);
+    }, { passive: true });
+    grid.addEventListener("touchmove", (e) => {
+      if (!held) return;
+      const t = e.touches[0], dx = t.clientX - held.x, dy = t.clientY - held.y;
+      if (!held.active) {
+        if (Math.hypot(dx, dy) > 10) { clearTimeout(held.timer); held = null; }   // it's a scroll
+        return;
+      }
+      e.preventDefault();
+      held.card.style.transform = `translate(${dx}px, ${dy}px)`;
+      clearMarks();
+      const under = document.elementFromPoint(t.clientX, t.clientY)?.closest(".page-card");
+      if (under && under !== held.card) under.classList.add("drop-here");
+    }, { passive: false });
+    const letGo = (e) => {
+      if (!held) return;
+      clearTimeout(held.timer);
+      if (held.active) {
+        const t = e.changedTouches[0];
+        const under = e.type === "touchend" && document.elementFromPoint(t.clientX, t.clientY)?.closest(".page-card");
+        clearMarks();
+        if (under && under !== held.card) moveTo(held.from, Number(under.dataset.at));
+        else { held.card.style.transform = ""; held.card.classList.remove("dragging", "lifted"); }
+      }
+      held = null;
+    };
+    grid.addEventListener("touchend", letGo);
+    grid.addEventListener("touchcancel", letGo);
+    // a long press would otherwise open the browser's own menu
+    grid.addEventListener("contextmenu", (e) => { if (held?.active) e.preventDefault(); });
     function draw() {
       grid.innerHTML = "";
       order.forEach((item, at) => {
-        const card = h(`<div class="page-card" draggable="true"><span class="thumb"></span>
+        const card = h(`<div class="page-card" draggable="true" data-at="${at}"><span class="thumb"></span>
           <span class="label"><span>Page ${item.src + 1}</span><span>${at + 1} of ${order.length}</span></span>
           <span class="tools-row">
             <button type="button" class="icon-btn" aria-label="Move page ${item.src + 1} earlier" ${at === 0 ? "disabled" : ""}>${svg("left")}</button>
@@ -51,11 +102,8 @@ export function mount({ main, desk, files, privateNote }) {
         card.addEventListener("dragover", (e) => e.preventDefault());
         card.addEventListener("drop", (e) => {
           e.preventDefault();
-          if (dragFrom === null || dragFrom === at) return;
-          const [moved] = order.splice(dragFrom, 1);
-          order.splice(at, 0, moved);
+          if (dragFrom !== null) moveTo(dragFrom, at);
           dragFrom = null;
-          draw();
         });
         grid.append(card);
       });

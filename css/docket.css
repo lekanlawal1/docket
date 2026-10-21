@@ -224,6 +224,10 @@ footer.foot { display: flex; flex-wrap: wrap; justify-content: space-between; ga
 .page-card .icon-btn { width: 40px; height: 40px; }
 .page-card[draggable=true] { cursor: grab; }
 .page-card.dragging { opacity: .5; }
+.page-card { -webkit-touch-callout: none; -webkit-user-select: none; user-select: none; }
+/* picked up by a finger: it follows the touch, so it mustn't block finding the card beneath */
+.page-card.lifted { opacity: .85; pointer-events: none; position: relative; z-index: 5; box-shadow: 0 10px 28px rgba(0,0,0,.25); }
+.page-card.drop-here { outline: 2px dashed var(--focus); outline-offset: 3px; }
 
 /* one big page you can mark (redact, sign) */
 .stage { position: relative; display: inline-block; max-width: 100%; touch-action: none; user-select: none; }

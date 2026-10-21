@@ -390,6 +390,38 @@ await check("organise: remove, move, turn and drag pages", async () => {
   expect(turns === "0 90 90", "rotations " + turns);
 });
 
+await check("organise by touch: hold, slide, let go; a quick swipe doesn't move anything", async () => {
+  const phone = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, acceptDownloads: true, ignoreHTTPSErrors: true });
+  const tp = await phone.newPage();
+  tp.on("pageerror", (e) => errors.push(e.message));
+  await tp.goto(base + "#/organise");
+  await tp.locator(".main .dock input").setInputFiles(lease);
+  await tp.waitForSelector(".page-card");
+  const cdp = await phone.newCDPSession(tp);
+  const touch = (type, x, y) => cdp.send("Input.dispatchTouchEvent", { type, touchPoints: type === "touchEnd" ? [] : [{ x, y }] });
+  const centre = async (i) => { const b = await tp.locator(".page-card").nth(i).locator(".thumb").boundingBox(); return [b.x + b.width / 2, b.y + b.height / 2]; };
+  const labels = () => tp.$$eval(".page-card .label > span:first-child", (els) => els.map((e) => e.textContent.replace("Page ", "")).join(" "));
+
+  // a quick upward swipe, the way people scroll: from page 3 toward page 1. A scroll, not a move.
+  let [x0, y0] = await centre(2), [x1, y1] = await centre(0);
+  await touch("touchStart", x0, y0);
+  for (let k = 1; k <= 5; k++) await touch("touchMove", x0 + ((x1 - x0) * k) / 5, y0 + ((y1 - y0) * k) / 5);
+  await touch("touchEnd");
+  expect(await labels() === "1 2 3 4", "a swipe moved a page: " + await labels());
+
+  // hold page 1, then slide it onto page 2 beside it (once the swipe's scroll has stopped gliding)
+  await tp.waitForTimeout(1200);
+  await tp.evaluate(() => scrollTo({ top: 0, behavior: "instant" }));        // pages 1 and 3 both on screen
+  await tp.waitForFunction(() => scrollY === 0);
+  [x0, y0] = await centre(0); [x1, y1] = await centre(1);
+  await touch("touchStart", x0, y0);
+  await tp.waitForTimeout(500);
+  for (let k = 1; k <= 8; k++) await touch("touchMove", x0 + ((x1 - x0) * k) / 8, y0 + ((y1 - y0) * k) / 8);
+  await touch("touchEnd");
+  expect(await labels() === "2 1 3 4", `hold and slide didn't move page 1 to second: ${await labels()} (from ${x0|0},${y0|0} to ${x1|0},${y1|0}, scrollY ${await tp.evaluate(() => scrollY)})`);
+  await phone.close();
+});
+
 await check("redact a box drawn by hand, and it's black in the result", async () => {
   await open("redact", [lease]);
   await page.waitForSelector(".stage canvas");
