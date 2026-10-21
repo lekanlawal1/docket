@@ -8,12 +8,12 @@ import { makeFixtures } from "./fixtures.mjs";
 
 const { chromium } = await import(process.env.PW || "playwright");
 const root = new URL("..", import.meta.url).pathname;
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm" };
+const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm", ".gz": "application/gzip" };
 const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path.endsWith("/")) path += "index.html";
   try {
-    const body = await readFile(join(root, path));
+    const body = await readFile(path.startsWith("/fixture/") ? join(fx, path.slice(9)) : join(root, path));
     res.writeHead(200, { "content-type": TYPES[extname(path)] || "application/octet-stream" }).end(body);
   } catch { res.writeHead(404).end(); }
 }).listen(0);
@@ -251,6 +251,29 @@ await check("password: lock, refuse a wrong password, unlock", async () => {
   await page.fill("[name=current]", "harbour light");
   const out = await readPdf((await save(".desk .unlock")).data);
   expect(out.texts[0].includes("Harbour Road"), "unlocked text missing");
+});
+
+await check("make searchable: a scan becomes searchable text", async () => {
+  // turn the lease into a "scan": every page redrawn as a picture, so no text is left
+  const scan = await page.evaluate(async () => {
+    const { rasterize } = await import("/js/pdf.js");
+    const bytes = new Uint8Array(await (await fetch("/fixture/lease.pdf")).arrayBuffer());
+    // page 4 has /Rotate 90, so its scan has the text running sideways
+    const out = await rasterize(bytes, { which: new Set([0, 3]), scale: 2 });
+    let s = ""; for (const b of out) s += String.fromCharCode(b);
+    return btoa(s);
+  });
+  const scanPath = join(fx, "scan.pdf");
+  await (await import("node:fs/promises")).writeFile(scanPath, Buffer.from(scan, "base64"));
+  expect(!(await readPdf(Buffer.from(scan, "base64"))).texts[0].trim(), "the scan still has text");
+
+  await open("searchable", [scanPath]);
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 180_000 }), page.locator(".desk .go").click()]);
+  const out = await readPdf(await readFile(await dl.path()));
+  for (const w of ["Harbour Road", "1,450", "landlord@example.com"]) expect(out.texts[0].includes(w), `"${w}" not found in: ${out.texts[0].slice(0, 200)}`);
+  // on a sideways page every word is its own line, so compare with the line breaks taken out
+  expect(out.texts[3].replace(/\s+/g, " ").includes("Harbour Road"), "the sideways page wasn't read");
+  expect(out.texts[1].includes("Page 2"), "page 2 (already text) lost its text");
 });
 
 await check("tools that aren't built say so", async () => {

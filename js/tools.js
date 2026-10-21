@@ -27,7 +27,7 @@ export const PIERS = [
   ] },
   { no: "05", name: "Shrink and fix", blurb: "Smaller, cleaner files", tint: "--tint-5", tools: [
     { id: "compress", name: "Compress", icon: "puffer", what: "Make a scanned PDF small enough to email or upload." },
-    { id: "searchable", name: "Make searchable", icon: "spyglass", what: "Read the text in a scan so you can search it.", soon: true },
+    { id: "searchable", name: "Make searchable", icon: "spyglass", what: "Read the text in a scan so you can search it." },
     { id: "grayscale", name: "Grayscale", icon: "gull", what: "Drop the colour to save ink." },
   ] },
   { no: "06", name: "Read", blurb: "Understand it faster", tint: "--tint-6", tools: [
