@@ -22,7 +22,7 @@ const base = process.env.BASE || `http://localhost:${server.address().port}/`;
 
 const fx = await mkdtemp(join(tmpdir(), "docket-"));
 await makeFixtures(fx);
-const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf");
+const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf");
 
 const browser = await chromium.launch({
   ...(process.env.CHROME && { executablePath: process.env.CHROME }),
@@ -299,6 +299,22 @@ await check("make searchable: a scan becomes searchable text", async () => {
   // on a sideways page every word is its own line, so compare with the line breaks taken out
   expect(out.texts[3].replace(/\s+/g, " ").includes("Harbour Road"), "the sideways page wasn't read");
   expect(out.texts[1].includes("Page 2"), "page 2 (already text) lost its text");
+});
+
+await check("make searchable reads French, accents and all", async () => {
+  const scan = await page.evaluate(async (b64) => {
+    const { rasterize } = await import(new URL("js/pdf.js", location.href).href);
+    const out = await rasterize(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)), { scale: 2 });
+    let s = ""; for (const b of out) s += String.fromCharCode(b);
+    return btoa(s);
+  }, (await readFile(bail)).toString("base64"));
+  const scanPath = join(fx, "bail-scan.pdf");
+  await (await import("node:fs/promises")).writeFile(scanPath, Buffer.from(scan, "base64"));
+  await open("searchable", [scanPath]);
+  await page.selectOption("[name=lang]", "fra");
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 180_000 }), page.locator(".desk .go").click()]);
+  const text = (await readPdf(await readFile(await dl.path()))).texts[0].replace(/\s+/g, " ");
+  for (const w of ["Bail résidentiel", "réparations nécessaires", "délai raisonnable", "dépôt de garantie"]) expect(text.includes(w), `"${w}" not found in: ${text.slice(0, 160)}`);
 });
 
 await check("pdf to word", async () => {

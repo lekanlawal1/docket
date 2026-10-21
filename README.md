@@ -28,7 +28,7 @@ Most free PDF sites upload your file to their server to do something your own co
 - **Compress won't hand you a bigger file.** If the result isn't smaller, it tells you instead of downloading it.
 - **The summary doesn't use AI.** It picks the sentences that best represent the document from the document itself, so it can't invent anything. It's a quick way in, not a replacement for reading.
 - **Passwords use AES-256,** and the locked file is opened twice before you get it: once without the password (it must refuse) and once with it (it must open). Print and copy restrictions are honoured by most PDF apps but aren't real locks, and the page says so.
-- **Make searchable doesn't change how the page looks.** The words it reads go behind the scan as invisible text, the way scanners with built-in OCR do it. It reads English print; handwriting and blurry photos come out poorly, and it flags pages it was unsure about.
+- **Make searchable doesn't change how the page looks.** The words it reads go behind the scan as invisible text, the way scanners with built-in OCR do it. It reads English and French print; handwriting and blurry photos come out poorly, and it flags pages it was unsure about.
 - **PDF to Word rebuilds structure, not layout.** A PDF only stores where each piece of text goes, so Docket works out lines, paragraphs, headings, lists, bold and italic from positions and fonts, drops repeated headers, footers and page numbers, and reads two-column pages column by column. Pictures come along, placed between the paragraphs they sat between (a logo repeated in every header is left out), and tables come out as tab-separated text. There's a preview so you can see what you'll get before saving.
 - **Signatures are pictures of a signature,** like signing a printout. They aren't certificate-based digital signatures.
 
@@ -62,7 +62,7 @@ Plain HTML, CSS and JavaScript modules. No framework.
 - [PDF.js](https://mozilla.github.io/pdf.js/) draws pages and reads their text.
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) makes QR codes.
 - [qpdf](https://github.com/qpdf/qpdf), compiled to WebAssembly by [qpdf-wasm](https://github.com/neslinesli93/qpdf-wasm), adds and removes passwords. It's only downloaded when the Password tool is used.
-- [Tesseract.js](https://github.com/naptha/tesseract.js) with Tesseract's English data reads scanned pages for Make searchable. About 7 MB, downloaded the first time that tool runs.
+- [Tesseract.js](https://github.com/naptha/tesseract.js) with Tesseract's English and French data reads scanned pages for Make searchable. About 7 MB, downloaded the first time that tool runs (French adds 0.7 MB, only if chosen).
 
 All of them are vendored in `vendor/`, with their licences, so the site works offline once loaded and doesn't depend on a CDN.
 

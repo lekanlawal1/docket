@@ -9,7 +9,7 @@ async function read(worker, canvas, turn) {
   const found = data.words.filter((w) => w.text.trim() && w.confidence > 20);
   // text read the wrong way round comes out as lots of one-character "words" at middling
   // confidence, so count only confident, word-like results
-  const score = found.filter((w) => w.confidence >= 75 && /[A-Za-z]{3}|\d{2}/.test(w.text)).length;
+  const score = found.filter((w) => w.confidence >= 75 && /\p{L}{3}|\d{2}/u.test(w.text)).length;
   return { data, found, turn, score };
 }
 
@@ -27,11 +27,16 @@ export function mount({ main, desk, files, privateNote }) {
       <p>${scanned.length
         ? `${plural(scanned.length, "page")} of ${view.numPages} ${scanned.length === 1 ? "is a scan" : "are scans"} with no text to search.`
         : "Every page already has text, so there's nothing to read. Try Find or PDF to text instead."}</p>
-      <p class="honest">Reads English, printed text. Handwriting, very small print and photos taken at an angle come out poorly.
+      <label class="field">Language<select name="lang">
+        <option value="eng">English</option><option value="fra">French</option><option value="eng+fra">English and French</option></select>
+        <span class="note">Choosing both is a little slower, for documents that mix them.</span></label>
+      <p class="honest">Reads printed text. Handwriting, very small print and photos taken at an angle come out poorly.
       The first time, this downloads the reader (about 7 MB); after that it's cached. It takes a few seconds a page, longer on phones.</p>
       <button type="button" class="pill go" ${scanned.length ? "" : "disabled"}>Make searchable</button>
       <p class="status" role="status"></p>${privateNote()}`;
-    const go = desk.querySelector(".go"), out = desk.querySelector(".status");
+    const go = desk.querySelector(".go"), out = desk.querySelector(".status"), lang = desk.querySelector("[name=lang]");
+    // start on French for people whose browser is set to French
+    if (/^fr\b/i.test(navigator.language || "")) lang.value = "fra";
 
     go.addEventListener("click", () => busy(go, out, "Reading...", async () => {
       let pageAt = 0;
@@ -39,7 +44,7 @@ export function mount({ main, desk, files, privateNote }) {
       const worker = await reader((m) => {
         if (/loading|initializ/i.test(m.status) && !pageAt) status(out, "Getting the reader ready (a one-time download)...");
         if (m.status === "recognizing text" && pageAt) status(out, `Reading page ${pageAt} of ${scanned.length}: ${Math.round(m.progress * 100)}%`);
-      });
+      }, lang.value);
 
       const doc = await openForEdit(bytesIn);
       let words = 0, confidence = 0, weak = [];
