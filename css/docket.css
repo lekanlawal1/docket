@@ -60,6 +60,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
+[tabindex="-1"]:focus { outline: none; }
 html { -webkit-text-size-adjust: 100%; }
 body {
   margin: 0;
@@ -184,7 +185,7 @@ footer.foot { display: flex; flex-wrap: wrap; justify-content: space-between; ga
 .desk h2 { margin: 0 0 6px; font-size: 24px; }
 .desk p { margin: 0 0 14px; color: var(--ink-soft); font-size: 15px; }
 .field { display: flex; flex-direction: column; gap: 6px; font-size: 14px; font-weight: 600; color: var(--ink-soft); margin-bottom: 14px; }
-.field input[type=text], .field input[type=number], .field select, .field textarea {
+.field input[type=text], .field input[type=password], .field input[type=number], .field select, .field textarea {
   font-weight: 400; font-size: 15px; padding: 11px 12px; border-radius: 10px; border: 1px solid var(--field-line); background: var(--field); color: var(--ink);
 }
 .field textarea { min-height: 120px; resize: vertical; }

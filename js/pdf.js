@@ -31,9 +31,9 @@ export async function openForEdit(bytes) {
 
 // A pdf.js document, for drawing pages and reading text. pdf.js takes ownership of the
 // buffer it's given, so it gets a copy and the caller keeps the original.
-export async function openForView(bytes) {
+export async function openForView(bytes, password) {
   const { getDocument } = await viewer();
-  return getDocument({ data: bytes.slice(), isEvalSupported: false }).promise;
+  return getDocument({ data: bytes.slice(), password, isEvalSupported: false }).promise;
 }
 
 // Draws one page (1-based) onto a new canvas, `width` pixels wide or at `scale`.
