@@ -30,6 +30,25 @@ export async function makeFixtures(dir) {
   small.addPage([612, 792]).drawText("A second file", { x: 50, y: 700, size: 14, font: await small.embedFont(StandardFonts.Helvetica) });
   writeFileSync(join(dir, "second.pdf"), await small.save());
 
+  // a page of text with a large photo-like picture on it, for compression
+  const photo = await PDFDocument.create();
+  const pp = photo.addPage([612, 792]);
+  pp.drawText("Harbour inspection report", { x: 50, y: 740, size: 18, font: await photo.embedFont(StandardFonts.Helvetica) });
+  const W = 1800, H = 1200, px = new Uint8Array(W * H * 3);
+  let seed = 7;
+  const noise = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) % 40) - 20;
+  for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+    const i = (y * W + x) * 3;
+    px[i] = Math.max(0, Math.min(255, 60 + (x / W) * 150 + noise()));
+    px[i + 1] = Math.max(0, Math.min(255, 110 + (y / H) * 100 + noise()));
+    px[i + 2] = Math.max(0, Math.min(255, 180 - (x / W) * 60 + noise()));
+  }
+  const img = photo.context.register(photo.context.flateStream(px, { Type: "XObject", Subtype: "Image", Width: W, Height: H, ColorSpace: "DeviceRGB", BitsPerComponent: 8 }));
+  const name = pp.node.newXObject("Photo", img);
+  const { pushGraphicsState, popGraphicsState, concatTransformationMatrix, drawObject } = await import("../vendor/pdf-lib/pdf-lib.esm.min.js");
+  pp.pushOperators(pushGraphicsState(), concatTransformationMatrix(512, 0, 0, 341, 50, 330), drawObject(name), popGraphicsState());
+  writeFileSync(join(dir, "photo.pdf"), await photo.save());
+
   const form = await PDFDocument.create();
   const fp = form.addPage([612, 792]);
   const f = form.getForm();
