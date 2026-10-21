@@ -317,6 +317,120 @@ await check("pdf to word on a browser-printed document keeps its structure", asy
   expect(await page.locator(".doc-preview b", { hasText: "March 1, 2026" }).count() === 1, "bold lost");
 });
 
+// ---- the interactive parts: dragging, drawing, reordering, and codes a phone can read
+
+const pdfLib = () => import("../vendor/pdf-lib/pdf-lib.esm.min.js");
+const zipNames = async (data) => {
+  const path = join(fx, "out.zip");
+  await (await import("node:fs/promises")).writeFile(path, data);
+  const script = "import sys, zipfile\nprint('\\n'.join(zipfile.ZipFile(sys.argv[1]).namelist()))";
+  return (await import("node:child_process")).execFileSync("python3", ["-c", script, path], { encoding: "utf8" }).trim().split("\n");
+};
+
+await check("organise: remove, move, turn and drag pages", async () => {
+  await open("organise", [lease]);
+  await page.waitForSelector(".page-card");
+  await page.click('[aria-label="Remove page 2"]');            // 1 3 4
+  await page.click('[aria-label="Move page 4 earlier"]');      // 1 4 3
+  await page.click('[aria-label="Turn page 1"]');
+  const cards = page.locator(".page-card");
+  await cards.nth(2).dragTo(cards.nth(0));                      // 3 1 4
+  const { data } = await save();
+  const out = await readPdf(data);
+  const order = out.texts.map((t) => t.match(/Page (\d)/)[1]).join(" ");
+  expect(order === "3 1 4", "order " + order);
+  const { PDFDocument } = await pdfLib();
+  const turns = (await PDFDocument.load(data)).getPages().map((p) => p.getRotation().angle).join(" ");
+  // page 1 was turned once; page 4 already had a quarter turn set in the file
+  expect(turns === "0 90 90", "rotations " + turns);
+});
+
+await check("redact a box drawn by hand, and it's black in the result", async () => {
+  await open("redact", [lease]);
+  await page.waitForSelector(".stage canvas");
+  const r = await page.locator(".stage").boundingBox();
+  // a box over the top third of page 1, where all the lease text is
+  await page.mouse.move(r.x + r.width * 0.05, r.y + r.height * 0.05);
+  await page.mouse.down();
+  await page.mouse.move(r.x + r.width * 0.95, r.y + r.height * 0.32, { steps: 8 });
+  await page.mouse.up();
+  expect(await page.locator(".stage .box").count() === 1, "no box drawn");
+  const { data } = await save();
+  await goodStatus();
+  const result = await page.evaluate(async (b64) => {
+    const { openForView, drawPage, pageTexts } = await import(new URL("js/pdf.js", location.href).href);
+    const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const { canvas } = await drawPage(doc, 1, { width: 400 });
+    const px = canvas.getContext("2d").getImageData(200, Math.round(canvas.height * 0.15), 1, 1).data;
+    return { texts: await pageTexts(doc), px: [...px] };
+  }, data.toString("base64"));
+  expect(!result.texts[0].includes("Harbour"), "text under the box is still there");
+  expect(result.texts[1].includes("Harbour"), "page 2 should be untouched");
+  expect(result.px[0] < 30 && result.px[1] < 30 && result.px[2] < 30, "box isn't black: " + result.px);
+});
+
+await check("sign with a drawn signature, kept through a tab switch", async () => {
+  await open("sign", [lease]);
+  await page.waitForSelector(".stage canvas");
+  const pad = await page.locator("canvas.pad").boundingBox();
+  await page.mouse.move(pad.x + 20, pad.y + pad.height * 0.6);
+  await page.mouse.down();
+  for (let i = 1; i <= 12; i++) await page.mouse.move(pad.x + 20 + i * 15, pad.y + pad.height * (0.6 + 0.25 * Math.sin(i)), { steps: 2 });
+  await page.mouse.up();
+  await page.click("[data-tab=type]");
+  await page.click("[data-tab=draw]");
+  await page.locator(".stage canvas").click({ position: { x: 200, y: 400 } });
+  expect(await page.locator(".stage .sig").count() === 1, "signature not placed (lost on tab switch?)");
+  const { data } = await save();
+  const { PDFDocument, PDFName, PDFDict } = await pdfLib();
+  const res = (await PDFDocument.load(data)).getPage(0).node.Resources();
+  const xobjects = res.lookup(PDFName.of("XObject"), PDFDict);
+  expect(xobjects && xobjects.keys().length >= 1, "no signature image on page 1");
+});
+
+await check("merge in a new order", async () => {
+  await open("merge", [lease, second]);
+  await page.click('[aria-label="Move second.pdf up"]');
+  const out = await readPdf((await save()).data);
+  expect(out.texts[0].includes("A second file") && out.texts[1].includes("Page 1"), "order not applied");
+});
+
+await check("split every 2 pages, and one file per page", async () => {
+  await open("split", [lease]);
+  await page.check("[name=mode][value=every]");
+  await page.fill("[name=every]", "2");
+  expect((await zipNames((await save()).data)).length === 2, "every 2 pages should make 2 files");
+  await page.check("[name=mode][value=each]");
+  expect((await zipNames((await save()).data)).length === 4, "one per page should make 4 files");
+});
+
+await check("qr codes decode to exactly what was typed", async () => {
+  const decode = async () => {
+    const { data } = await save(".desk .png");
+    await page.addScriptTag({ path: new URL("../node_modules/jsqr/dist/jsQR.js", import.meta.url).pathname });
+    return page.evaluate(async (b64) => {
+      const img = new Image();
+      img.src = "data:image/png;base64," + b64;
+      await img.decode();
+      const c = Object.assign(document.createElement("canvas"), { width: img.width, height: img.height });
+      const ctx = c.getContext("2d");
+      ctx.drawImage(img, 0, 0);
+      return window.jsQR(ctx.getImageData(0, 0, c.width, c.height).data, c.width, c.height)?.data ?? null;
+    }, data.toString("base64"));
+  };
+  await open("qr");
+  await page.fill("[name=text]", "https://lekanlawal1.github.io/docket/ café ✓");
+  expect(await decode() === "https://lekanlawal1.github.io/docket/ café ✓", "link didn't round-trip");
+  await page.check("[name=kind][value=wifi]");
+  await page.fill("[name=ssid]", "Harbour;Guest");
+  await page.fill("[name=pass]", 'sea:salt"1');
+  { const got = await decode(); expect(got === String.raw`WIFI:T:WPA;S:Harbour\;Guest;P:sea\:salt\"1;;`, "wi-fi code wrong: " + got); }
+  await page.check("[name=kind][value=contact]");
+  await page.fill("[name=name]", "Sam Rowe");
+  await page.fill("[name=phone]", "705-555-0142");
+  expect(await decode() === "BEGIN:VCARD\nVERSION:3.0\nFN:Sam Rowe\nTEL:705-555-0142\nEND:VCARD", "contact card wrong");
+});
+
 await browser.close();
 server.close();
 console.log(failed ? `\n${failed} failed` : "\nall passed");

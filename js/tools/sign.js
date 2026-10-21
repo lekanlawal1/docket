@@ -22,15 +22,22 @@ function trimmed(canvas) {
 function signaturePad(onChange) {
   const pad = h(`<canvas class="pad" aria-label="Draw your signature here"></canvas>`);
   let drawing = false, last = null, dirty = false;
-  const fit = () => {
+  // resizing a canvas wipes it, so a size change (a tab switch, a phone turning) keeps what's drawn
+  const fit = (keep = true) => {
     const r = pad.getBoundingClientRect();
     if (!r.width) return;
-    pad.width = r.width * 2; pad.height = r.height * 2;
+    const w = Math.round(r.width * 2), hgt = Math.round(r.height * 2);
+    if (keep && pad.width === w && pad.height === hgt) return;
+    const old = keep && dirty ? Object.assign(document.createElement("canvas"), { width: pad.width, height: pad.height }) : null;
+    old?.getContext("2d").drawImage(pad, 0, 0);
+    pad.width = w; pad.height = hgt;
     const ctx = pad.getContext("2d");
+    if (old) ctx.drawImage(old, 0, 0, w, hgt);
     ctx.lineWidth = 5; ctx.lineCap = "round"; ctx.lineJoin = "round"; ctx.strokeStyle = "#13233A";
   };
+  new ResizeObserver(() => fit()).observe(pad);
   const at = (e) => { const r = pad.getBoundingClientRect(); return [(e.clientX - r.left) * 2, (e.clientY - r.top) * 2]; };
-  pad.addEventListener("pointerdown", (e) => { if (!pad.width) fit(); drawing = true; last = at(e); pad.setPointerCapture(e.pointerId); });
+  pad.addEventListener("pointerdown", (e) => { fit(); drawing = true; last = at(e); pad.setPointerCapture(e.pointerId); });
   pad.addEventListener("pointermove", (e) => {
     if (!drawing) return;
     const p = at(e), ctx = pad.getContext("2d");
@@ -38,7 +45,7 @@ function signaturePad(onChange) {
     last = p; dirty = true;
   });
   pad.addEventListener("pointerup", () => { drawing = false; if (dirty) onChange(); });
-  return { el: pad, fit, clear: () => { fit(); dirty = false; }, image: () => (dirty ? trimmed(pad) : null) };
+  return { el: pad, fit, clear: () => { dirty = false; fit(false); }, image: () => (dirty ? trimmed(pad) : null) };
 }
 
 function typedSignature(text, font) {
