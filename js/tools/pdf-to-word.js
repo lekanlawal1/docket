@@ -4,7 +4,7 @@ import { paragraphs, withPictures } from "../layout.js";
 import { pagePictures } from "../pictures.js";
 import { docx } from "../docx.js";
 
-export const intro = "The text of a PDF as an editable Word document, with its headings, paragraphs, lists and bold or italic kept.";
+export const intro = "A PDF as an editable Word document, with its headings, paragraphs, lists, tables, pictures, and bold or italic kept.";
 
 // Every piece of text on a page with its position, size and style, for layout.js.
 async function readPage(view, n, pdfjs) {
@@ -55,7 +55,7 @@ export function mount({ main, desk, files, privateNote }) {
     desk.innerHTML = `<h2>To Word</h2>
       <p>${plural(view.numPages, "page")}.${empty.length ? ` ${empty.length === view.numPages ? "None of them have" : `Page${empty.length > 1 ? "s" : ""} ${empty.join(", ")} ${empty.length > 1 ? "have" : "has"}`} any text: ${empty.length > 1 ? "they're" : "it's"} probably scanned. Run <a href="#/searchable">Make searchable</a> first, then convert that.` : ""}</p>
       <label class="check"><input type="checkbox" name="breaks"> Start each PDF page on a new page</label>
-      <p class="honest">You get the words, their structure (headings, paragraphs, lists, bold and italic) and the pictures, each placed between the paragraphs it sat between. Tables come out as text separated by tabs, and the exact layout won't match. Check the preview before you rely on it.</p>
+      <p class="honest">You get the words, their structure (headings, paragraphs, lists, bold and italic) and the pictures, each placed between the paragraphs it sat between. Simple tables become Word tables; tables with merged or wrapped cells may come out as text separated by tabs. The exact layout won't match. Check the preview before you rely on it.</p>
       <button type="button" class="pill go" ${empty.length === view.numPages ? "disabled" : ""}>Save as Word</button>
       <p class="status" role="status"></p>${privateNote()}`;
     const go = desk.querySelector(".go"), out = desk.querySelector(".status");
@@ -64,18 +64,23 @@ export function mount({ main, desk, files, privateNote }) {
     go.disabled = !result.length;     // a scan with no text can still have its pictures
     const preview = h(`<div class="out-text doc-preview" aria-label="Preview"></div>`);
     const urls = [];
+    const runsHtml = (runs, plainBold) => runs.map((r) => {
+      let t = esc(r.text).replace(/\t/g, " &nbsp; ");
+      if (r.bold && !plainBold) t = `<b>${t}</b>`;
+      if (r.italic) t = `<i>${t}</i>`;
+      return t;
+    }).join("");
     preview.innerHTML = result.slice(0, 80).map((p) => {
+      if (p.table) {
+        return `<table class="pv-table">${p.table.rows.map((row) => `<tr>${row.map((cell, k) =>
+          `<td${p.table.numeric[k] ? ' class="num"' : ""}>${runsHtml(cell)}</td>`).join("")}</tr>`).join("")}</table>`;
+      }
       if (p.picture) {
         const url = URL.createObjectURL(new Blob([p.picture.data], { type: `image/${p.picture.ext}` }));
         urls.push(url);
         return `<p><img src="${url}" alt="A picture from page ${p.page + 1}" style="max-width: min(100%, ${Math.round(p.picture.width * 1.33)}px); display: block"></p>`;
       }
-      const inner = p.runs.map((r) => {
-        let t = esc(r.text).replace(/\t/g, " &nbsp; ");
-        if (r.bold && !p.heading) t = `<b>${t}</b>`;
-        if (r.italic) t = `<i>${t}</i>`;
-        return t;
-      }).join("");
+      const inner = runsHtml(p.runs, p.heading);
       return p.heading ? `<h${p.heading + 1}>${inner}</h${p.heading + 1}>` : `<p${p.list ? ' class="li"' : ""}>${inner}</p>`;
     }).join("") + (result.length > 80 ? `<p><em>... and ${plural(result.length - 80, "more paragraph")}.</em></p>` : "");
     // the preview's pictures are only needed while this page is open
@@ -94,8 +99,8 @@ export function mount({ main, desk, files, privateNote }) {
       const title = (await view.getMetadata()).info?.Title || file.name.replace(/\.pdf$/i, "");
       const data = docx(paras, { title, page: { width: first.width, height: first.height } });
       download(data, renamed(file, "", "docx"), "application/vnd.openxmlformats-officedocument.wordprocessingml.document");
-      const heads = paras.filter((p) => p.heading).length, pics = paras.filter((p) => p.picture).length;
-      status(out, `Done: ${plural(paras.length - pics, "paragraph")}${heads ? `, ${plural(heads, "heading")}` : ""}${pics ? `, ${plural(pics, "picture")}` : ""}.`, "good");
+      const heads = paras.filter((p) => p.heading).length, pics = paras.filter((p) => p.picture).length, tables = paras.filter((p) => p.table).length;
+      status(out, `Done: ${plural(paras.length - pics - tables, "paragraph")}${heads ? `, ${plural(heads, "heading")}` : ""}${tables ? `, ${plural(tables, "table")}` : ""}${pics ? `, ${plural(pics, "picture")}` : ""}.`, "good");
     }));
   } });
 }

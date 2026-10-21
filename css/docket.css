@@ -249,6 +249,9 @@ ol.out-text { white-space: normal; padding-left: 40px; }
 .doc-preview p { margin: 0 0 .7em; }
 .doc-preview p.li { margin: 0 0 .25em; padding-left: 1.2em; }
 .doc-preview > :first-child { margin-top: 0; }
+.pv-table { border-collapse: collapse; margin: 0 0 .9em; font-size: 14px; }
+.pv-table td { border: 1px solid var(--field-line); padding: 4px 8px; vertical-align: top; }
+.pv-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 ol.out-text li + li { margin-top: 10px; }
 .found-group { margin-bottom: 14px; }
 .found-group h3 { margin: 0 0 6px; font-size: 15px; }

@@ -351,7 +351,11 @@ await check("pdf to word on a browser-printed document keeps its structure", asy
   const chart = await pic(600, 300, 190), logo = await pic(120, 40, 20);
   await printer.setContent(`<body style="font-family: Georgia, serif; font-size: 12pt; margin: 0">
     <h1>Residential Lease</h1><p>Made on <b>March 1, 2026</b> between the <i>landlord</i> and the tenant.</p>
-    <h2>1. Rent</h2><p>${para} ${para}</p><img src="${chart}" style="width: 300px; display: block"><p>Payments can be made by:</p>
+    <h2>1. Rent</h2><p>${para} ${para}</p><img src="${chart}" style="width: 300px; display: block"><table style="border-collapse: collapse; margin: 0 0 12px"><tr><th style="text-align:left; padding: 3px 14px 3px 0">Fee</th><th style="text-align:right; padding: 3px 14px">When</th><th style="text-align:right; padding: 3px 0 3px 14px">Amount</th></tr>
+      <tr><td style="padding: 3px 14px 3px 0">Rent</td><td style="text-align:right; padding: 3px 14px">1st of the month</td><td style="text-align:right; padding: 3px 0 3px 14px">$1,450.00</td></tr>
+      <tr><td style="padding: 3px 14px 3px 0">Parking</td><td style="text-align:right; padding: 3px 14px">1st of the month</td><td style="text-align:right; padding: 3px 0 3px 14px">$75.00</td></tr>
+      <tr><td style="padding: 3px 14px 3px 0">Late fee</td><td style="text-align:right; padding: 3px 14px">after the 5th</td><td style="text-align:right; padding: 3px 0 3px 14px">$50.00</td></tr></table>
+    <p>Payments can be made by:</p>
     <ul><li>e-transfer to the landlord</li><li>post-dated cheques</li><li>pre-authorised debit</li></ul>
     <h2>2. Ending the lease</h2>${`<p>${para} ${para} ${para}</p>`.repeat(9)}</body>`);
   const printed = join(fx, "printed.pdf");
@@ -362,9 +366,9 @@ await check("pdf to word on a browser-printed document keeps its structure", asy
 
   await open("pdf-to-word", [printed]);
   await page.waitForSelector(".doc-preview p");
-  const shape = await page.$$eval(".doc-preview > *", (els) => els.map((e) => (e.querySelector("img") ? "img" : e.tagName === "P" ? (e.className === "li" ? "li" : "p") : e.tagName.toLowerCase())));
+  const shape = await page.$$eval(".doc-preview > *", (els) => els.map((e) => (e.querySelector("img") ? "img" : e.tagName === "TABLE" ? `table${e.rows.length}x${e.rows[0].cells.length}` : e.tagName === "P" ? (e.className === "li" ? "li" : "p") : e.tagName.toLowerCase())));
   const text = await page.locator(".doc-preview").innerText();
-  expect(shape.join(" ") === "h2 p h3 p img p li li li h3 " + "p ".repeat(9).trim(), "structure: " + shape.join(" ") + " | " + text.split("\n").filter(Boolean).map((t) => t.length + ":" + t.slice(-25)).join(" / "));
+  expect(shape.join(" ") === "h2 p h3 p img table4x3 p li li li h3 " + "p ".repeat(9).trim(), "structure: " + shape.join(" ") + " | " + text.split("\n").filter(Boolean).map((t) => t.length + ":" + t.slice(-25)).join(" / "));
   expect(!/Harbour Rentals|Page \d of/.test(text), "header or footer kept");
   expect(await page.locator(".doc-preview b", { hasText: "March 1, 2026" }).count() === 1, "bold lost");
 });
