@@ -13,17 +13,22 @@ const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path.endsWith("/")) path += "index.html";
   try {
-    const body = await readFile(path.startsWith("/fixture/") ? join(fx, path.slice(9)) : join(root, path));
+    const body = await readFile(join(root, path));
     res.writeHead(200, { "content-type": TYPES[extname(path)] || "application/octet-stream" }).end(body);
   } catch { res.writeHead(404).end(); }
 }).listen(0);
-const base = `http://localhost:${server.address().port}/`;
+// BASE=https://.../docket/ runs the same checks against a deployed copy
+const base = process.env.BASE || `http://localhost:${server.address().port}/`;
 
 const fx = await mkdtemp(join(tmpdir(), "docket-"));
 await makeFixtures(fx);
 const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf");
 
-const browser = await chromium.launch(process.env.CHROME ? { executablePath: process.env.CHROME } : {});
+const browser = await chromium.launch({
+  ...(process.env.CHROME && { executablePath: process.env.CHROME }),
+  // behind a proxy, a deployed copy can only be reached through it
+  ...(process.env.BASE && process.env.HTTPS_PROXY && { proxy: { server: process.env.HTTPS_PROXY } }),
+});
 const page = await browser.newPage({ acceptDownloads: true, ignoreHTTPSErrors: !!process.env.CHROME, viewport: { width: 1280, height: 900 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
@@ -64,7 +69,7 @@ async function save(button = ".desk .go") {
 
 // pages and text of a PDF, read by the site's own copy of pdf.js
 const readPdf = (data) => page.evaluate(async (b64) => {
-  const { openForView, pageTexts } = await import("/js/pdf.js");
+  const { openForView, pageTexts } = await import(new URL("js/pdf.js", location.href).href);
   const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
   return { pages: doc.numPages, texts: await pageTexts(doc) };
 }, data.toString("base64"));
@@ -235,7 +240,7 @@ await check("password: lock, refuse a wrong password, unlock", async () => {
   const locked = await save(".desk .lock");
   await goodStatus();
   const needsPassword = await page.evaluate(async (b64) => {
-    const { openForView } = await import("/js/pdf.js");
+    const { openForView } = await import(new URL("js/pdf.js", location.href).href);
     try { await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))); return false; }
     catch (e) { return e.name === "PasswordException"; }
   }, locked.data.toString("base64"));
@@ -255,14 +260,14 @@ await check("password: lock, refuse a wrong password, unlock", async () => {
 
 await check("make searchable: a scan becomes searchable text", async () => {
   // turn the lease into a "scan": every page redrawn as a picture, so no text is left
-  const scan = await page.evaluate(async () => {
-    const { rasterize } = await import("/js/pdf.js");
-    const bytes = new Uint8Array(await (await fetch("/fixture/lease.pdf")).arrayBuffer());
+  const scan = await page.evaluate(async (b64) => {
+    const { rasterize } = await import(new URL("js/pdf.js", location.href).href);
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
     // page 4 has /Rotate 90, so its scan has the text running sideways
     const out = await rasterize(bytes, { which: new Set([0, 3]), scale: 2 });
     let s = ""; for (const b of out) s += String.fromCharCode(b);
     return btoa(s);
-  });
+  }, (await readFile(lease)).toString("base64"));
   const scanPath = join(fx, "scan.pdf");
   await (await import("node:fs/promises")).writeFile(scanPath, Buffer.from(scan, "base64"));
   expect(!(await readPdf(Buffer.from(scan, "base64"))).texts[0].trim(), "the scan still has text");
