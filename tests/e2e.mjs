@@ -75,6 +75,12 @@ const readPdf = (data) => page.evaluate(async (b64) => {
 }, data.toString("base64"));
 
 const pdfLib = () => import("../vendor/pdf-lib/pdf-lib.esm.min.js");
+const zipNames = async (data) => {
+  const path = join(fx, "out.zip");
+  await (await import("node:fs/promises")).writeFile(path, data);
+  const script = "import sys, zipfile\nprint('\\n'.join(zipfile.ZipFile(sys.argv[1]).namelist()))";
+  return (await import("node:child_process")).execFileSync("python3", ["-c", script, path], { encoding: "utf8" }).trim().split("\n");
+};
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 const goodStatus = async () => expect(await page.locator(".desk .status.good").count(), "no success message: " + await page.locator(".desk .status").innerText());
 
@@ -307,38 +313,48 @@ await check("pdf to word", async () => {
   for (const w of ["14 Harbour Road", "$1,450", "landlord@example.com"]) expect(xml.includes(w), "missing " + w);
 });
 
+await check("pdf to word carries pictures over, in place", async () => {
+  await open("pdf-to-word", [photo]);
+  await page.waitForSelector(".doc-preview img");
+  const names = await zipNames((await save()).data);
+  expect(names.some((n) => /^word\/media\/image1\.(jpeg|png)$/.test(n)), "no picture in the .docx: " + names.join(", "));
+  const shape = await page.$$eval(".doc-preview > *", (els) => els.map((e) => (e.querySelector("img") ? "img" : e.tagName.toLowerCase())));
+  expect(shape.join(" ") === "h2 img" || shape.join(" ") === "p img", "order: " + shape.join(" "));
+});
+
 await check("pdf to word on a browser-printed document keeps its structure", async () => {
   // a real-world PDF: printed by Chromium, with a running header, page numbers and drawn bullets
   const para = "The tenant agrees to keep the unit clean and in good repair, to report any damage promptly, and to allow reasonable access for repairs with written notice.";
   const printer = await browser.newPage();
+  // a chart-like picture for the body, and a small logo for the running header
+  const pic = (w, h, hue) => printer.evaluate(([w, h, hue]) => {
+    const c = Object.assign(document.createElement("canvas"), { width: w, height: h }), x = c.getContext("2d");
+    for (let i = 0; i < 12; i++) { x.fillStyle = `hsl(${hue + i * 9}, 60%, ${40 + i * 3}%)`; x.fillRect(i * (w / 12), h - (i + 3) * (h / 16), w / 12 - 4, (i + 3) * (h / 16)); }
+    return c.toDataURL("image/png");
+  }, [w, h, hue]);
+  const chart = await pic(600, 300, 190), logo = await pic(120, 40, 20);
   await printer.setContent(`<body style="font-family: Georgia, serif; font-size: 12pt; margin: 0">
     <h1>Residential Lease</h1><p>Made on <b>March 1, 2026</b> between the <i>landlord</i> and the tenant.</p>
-    <h2>1. Rent</h2><p>${para} ${para}</p><p>Payments can be made by:</p>
+    <h2>1. Rent</h2><p>${para} ${para}</p><img src="${chart}" style="width: 300px; display: block"><p>Payments can be made by:</p>
     <ul><li>e-transfer to the landlord</li><li>post-dated cheques</li><li>pre-authorised debit</li></ul>
     <h2>2. Ending the lease</h2>${`<p>${para} ${para} ${para}</p>`.repeat(9)}</body>`);
   const printed = join(fx, "printed.pdf");
   await printer.pdf({ path: printed, format: "Letter", margin: { top: "72px", bottom: "72px", left: "72px", right: "72px" }, displayHeaderFooter: true,
-    headerTemplate: '<div style="font-size:8px;width:100%;text-align:center">Harbour Rentals - Lease</div>',
+    headerTemplate: `<div style="font-size:8px;width:100%;text-align:center"><img src="${logo}" style="width:60px;height:20px"> Harbour Rentals - Lease</div>`,
     footerTemplate: '<div style="font-size:8px;width:100%;text-align:center">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>' });
   await printer.close();
 
   await open("pdf-to-word", [printed]);
   await page.waitForSelector(".doc-preview p");
-  const shape = await page.$$eval(".doc-preview > *", (els) => els.map((e) => (e.tagName === "P" ? (e.className === "li" ? "li" : "p") : e.tagName.toLowerCase())));
+  const shape = await page.$$eval(".doc-preview > *", (els) => els.map((e) => (e.querySelector("img") ? "img" : e.tagName === "P" ? (e.className === "li" ? "li" : "p") : e.tagName.toLowerCase())));
   const text = await page.locator(".doc-preview").innerText();
-  expect(shape.join(" ") === "h2 p h3 p p li li li h3 " + "p ".repeat(9).trim(), "structure: " + shape.join(" ") + " | " + text.slice(0, 80));
+  expect(shape.join(" ") === "h2 p h3 p img p li li li h3 " + "p ".repeat(9).trim(), "structure: " + shape.join(" ") + " | " + text.split("\n").filter(Boolean).map((t) => t.length + ":" + t.slice(-25)).join(" / "));
   expect(!/Harbour Rentals|Page \d of/.test(text), "header or footer kept");
   expect(await page.locator(".doc-preview b", { hasText: "March 1, 2026" }).count() === 1, "bold lost");
 });
 
 // ---- the interactive parts: dragging, drawing, reordering, and codes a phone can read
 
-const zipNames = async (data) => {
-  const path = join(fx, "out.zip");
-  await (await import("node:fs/promises")).writeFile(path, data);
-  const script = "import sys, zipfile\nprint('\\n'.join(zipfile.ZipFile(sys.argv[1]).namelist()))";
-  return (await import("node:child_process")).execFileSync("python3", ["-c", script, path], { encoding: "utf8" }).trim().split("\n");
-};
 
 await check("organise: remove, move, turn and drag pages", async () => {
   await open("organise", [lease]);

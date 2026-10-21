@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { paragraphs } from "../js/layout.js";
+import { paragraphs, withPictures } from "../js/layout.js";
 
 // Lays out text the way a PDF would: one item per line, 6 points per character.
 function page(lines, { width = 612, height = 792 } = {}) {
@@ -103,4 +103,21 @@ test("bold and italic survive as runs", () => {
     { text: " and ", bold: false, italic: false },
     { text: "emphasised.", bold: false, italic: true },
   ]);
+});
+
+test("pictures go between the right paragraphs; scans and repeated logos don't", () => {
+  const pages = [1, 2].map(() => ({ width: 612, height: 792 }));
+  const paras = [
+    { page: 0, top: 100, runs: [{ text: "Intro" }] },
+    { page: 0, top: 500, runs: [{ text: "After the chart" }] },
+    { page: 1, top: 100, runs: [{ text: "Page two" }] },
+  ];
+  const pics = [
+    { page: 0, y: 250, x: 72, width: 300, height: 200, key: "chart" },
+    { page: 0, y: 20, x: 72, width: 80, height: 30, key: "logo" },    // in the header of both pages
+    { page: 1, y: 20, x: 72, width: 80, height: 30, key: "logo" },
+    { page: 1, y: 0, x: 0, width: 612, height: 792, key: "scan" },    // a whole-page picture behind text
+  ];
+  const order = withPictures(paras, pics, pages).map((p) => (p.picture ? `[${p.picture.key}]` : p.runs[0].text));
+  assert.deepEqual(order, ["Intro", "[chart]", "After the chart", "Page two"]);
 });

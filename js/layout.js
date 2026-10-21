@@ -139,7 +139,13 @@ export function paragraphs(pagesIn) {
     e.left.push(s.x0); e.right.push(s.x1);
     edges.set(k, e);
   }
-  const rightEdge = (s) => { const e = edges.get(`${s.page}:${s.column ?? 0}`); return Math.max(...e.right); };
+  // a page with only a line or two can't say where its margin is, so use the whole document's
+  const allRight = new Map();
+  for (const s of ordered) allRight.set(s.column ?? 0, Math.max(allRight.get(s.column ?? 0) || 0, s.x1));
+  const rightEdge = (s) => {
+    const e = edges.get(`${s.page}:${s.column ?? 0}`);
+    return e.right.length >= 3 ? Math.max(...e.right) : allRight.get(s.column ?? 0);
+  };
   const leftEdge = (s) => { const e = edges.get(`${s.page}:${s.column ?? 0}`); return median(e.left); };
 
   const level = (s) => {
@@ -152,7 +158,10 @@ export function paragraphs(pagesIn) {
   };
 
   const out = [];
+  const sparse = (s) => edges.get(`${s.page}:${s.column ?? 0}`).right.length < 3;
   const isShort = (s) => s.x1 < rightEdge(s) - s.size * 4;
+  // on a nearly empty page, a line that stops well short of the paper's right side ends its paragraph
+  const endsPage = (s) => isShort(s) || (sparse(s) && s.column == null && s.x1 < s.pageWidth * 0.7);
   const isIndented = (s) => s.x0 > leftEdge(s) + s.size * 1.2;
   // some PDFs draw bullets as shapes, so a list can only be seen as a run of short lines
   // indented together
@@ -185,7 +194,8 @@ export function paragraphs(pagesIn) {
         // the last line of a paragraph usually stops short of the margin
         (samePlace && shortLine) ||
         (indented && endsSentence) ||
-        (!samePlace && endsSentence) ||
+        // across a page or column break, a full last line means the paragraph carries on
+        (!samePlace && endsSentence && endsPage(prev)) ||
         // a list item's continuation lines are indented under its text
         (cur.list && s.x0 < cur.x0 + s.size * 0.5);
       // a heading only runs on if the lines are right under each other
@@ -193,7 +203,7 @@ export function paragraphs(pagesIn) {
     }
 
     if (fresh) {
-      cur = { heading: h || undefined, list: listStart || undefined, runs: [], x0: s.x0, page: s.page };
+      cur = { heading: h || undefined, list: listStart || undefined, runs: [], x0: s.x0, page: s.page, top: s.y - s.size };
       if (shapeBullet) s.runs.unshift({ text: "•\t", bold: false, italic: false });
       else if (listStart) {
         const m = s.text.match(BULLET);
@@ -237,4 +247,29 @@ function trimStart(runs, n, lead) {
     else { r.text = r.text.slice(left); left = 0; }
   }
   runs.unshift({ text: lead, bold: false, italic: false });
+}
+
+// Puts pictures among the paragraphs by page and height. Pictures that are really a scanned
+// page behind its own text, or a logo repeated in every page's header or footer, are left out.
+// pictures: [{ page, x, y, width, height, key, ... }] in the same top-down points as the text.
+export function withPictures(paras, pictures, pages) {
+  const texty = new Set(paras.map((p) => p.page));
+  const edge = (pic) => { const p = pages[pic.page]; return pic.y + pic.height < p.height * 0.15 || pic.y > p.height * 0.85; };
+  const repeats = new Map();
+  for (const pic of pictures) if (edge(pic)) repeats.set(pic.key, new Set([...(repeats.get(pic.key) || []), pic.page]));
+  const keep = pictures.filter((pic) => {
+    const p = pages[pic.page];
+    if (texty.has(pic.page) && pic.width * pic.height > p.width * p.height * 0.85) return false;
+    if (edge(pic) && pages.length >= 2 && repeats.get(pic.key).size >= Math.max(2, pages.length * 0.6)) return false;
+    return true;
+  }).sort((a, b) => a.page - b.page || a.y - b.y);
+
+  const out = [];
+  let i = 0;
+  for (const para of paras) {
+    while (i < keep.length && (keep[i].page < para.page || (keep[i].page === para.page && keep[i].y < para.top))) { out.push({ picture: keep[i], page: keep[i].page }); i++; }
+    out.push(para);
+  }
+  while (i < keep.length) out.push({ picture: keep[i], page: keep[i++].page });
+  return out;
 }

@@ -13,6 +13,8 @@ const CONTENT_TYPES = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
 <Default Extension="xml" ContentType="application/xml"/>
+<Default Extension="png" ContentType="image/png"/>
+<Default Extension="jpeg" ContentType="image/jpeg"/>
 <Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/>
 <Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/>
 <Override PartName="/docProps/core.xml" ContentType="application/vnd.openxmlformats-package.core-properties+xml"/>
@@ -24,10 +26,23 @@ const ROOT_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationship Id="rId2" Type="http://schemas.openxmlformats.org/package/2006/relationships/metadata/core-properties" Target="docProps/core.xml"/>
 </Relationships>`;
 
-const DOC_RELS = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
+const docRels = (media) => `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
 <Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
 <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>
+${media.map((m, i) => `<Relationship Id="rIdImg${i + 1}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="media/image${i + 1}.${m.ext}"/>`).join("\n")}
 </Relationships>`;
+
+// A picture in its own paragraph, sized in EMUs (12,700 to a point).
+function picture(n, widthPt, heightPt) {
+  const cx = Math.round(widthPt * 12700), cy = Math.round(heightPt * 12700);
+  return `<w:p><w:pPr><w:spacing w:after="160"/></w:pPr><w:r><w:drawing><wp:inline distT="0" distB="0" distL="0" distR="0">
+<wp:extent cx="${cx}" cy="${cy}"/><wp:docPr id="${n}" name="Picture ${n}"/>
+<a:graphic xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"><a:graphicData uri="http://schemas.openxmlformats.org/drawingml/2006/picture">
+<pic:pic xmlns:pic="http://schemas.openxmlformats.org/drawingml/2006/picture"><pic:nvPicPr><pic:cNvPr id="${n}" name="Picture ${n}"/><pic:cNvPicPr/></pic:nvPicPr>
+<pic:blipFill><a:blip r:embed="rIdImg${n}"/><a:stretch><a:fillRect/></a:stretch></pic:blipFill>
+<pic:spPr><a:xfrm><a:off x="0" y="0"/><a:ext cx="${cx}" cy="${cy}"/></a:xfrm><a:prstGeom prst="rect"><a:avLst/></a:prstGeom></pic:spPr></pic:pic>
+</a:graphicData></a:graphic></wp:inline></w:drawing></w:r></w:p>`;
+}
 
 // sizes are in half-points, spacing in twentieths of a point
 const heading = (id, name, size, before) => `<w:style w:type="paragraph" w:styleId="${id}"><w:name w:val="${name}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:uiPriority w:val="9"/><w:qFormat/>
@@ -68,13 +83,21 @@ function paragraph(p) {
   return `<w:p>${props ? `<w:pPr>${props}</w:pPr>` : ""}${runs.map(run).join("")}</w:p>`;
 }
 
-// paragraphs: [{ heading?: 1|2|3, list?: true, runs: [{ text, bold?, italic? }] }]
+// paragraphs: [{ heading?: 1|2|3, list?: true, runs: [{ text, bold?, italic? }] }], or
+// [{ picture: { data: Uint8Array, ext: "png" | "jpeg", width, height } }] with the size in points
 // page: { width, height } in points, for the document's page size
 export function docx(paragraphs, { title = "", page = { width: 612, height: 792 } } = {}) {
   const twips = (pt) => Math.round(pt * 20);
-  const body = paragraphs.map(paragraph).join("\n");
+  // pictures are shrunk to fit between the margins (an inch each side), never enlarged
+  const media = [], room = page.width - 144;
+  const body = paragraphs.map((p) => {
+    if (!p.picture) return paragraph(p);
+    media.push(p.picture);
+    const k = Math.min(1, room / p.picture.width);
+    return picture(media.length, p.picture.width * k, p.picture.height * k);
+  }).join("\n");
   const document = `<?xml version="1.0" encoding="UTF-8" standalone="yes"?>
-<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>
+<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships" xmlns:wp="http://schemas.openxmlformats.org/drawingml/2006/wordprocessingDrawing"><w:body>
 ${body || "<w:p/>"}
 <w:sectPr><w:pgSz w:w="${twips(page.width)}" w:h="${twips(page.height)}"${page.width > page.height ? ' w:orient="landscape"' : ""}/>
 <w:pgMar w:top="1440" w:right="1440" w:bottom="1440" w:left="1440" w:header="720" w:footer="720" w:gutter="0"/></w:sectPr>
@@ -85,7 +108,8 @@ ${body || "<w:p/>"}
     { name: "_rels/.rels", data: enc.encode(ROOT_RELS) },
     { name: "docProps/core.xml", data: enc.encode(core(title)) },
     { name: "word/document.xml", data: enc.encode(document) },
-    { name: "word/_rels/document.xml.rels", data: enc.encode(DOC_RELS) },
+    { name: "word/_rels/document.xml.rels", data: enc.encode(docRels(media)) },
     { name: "word/styles.xml", data: enc.encode(STYLES) },
+    ...media.map((m, i) => ({ name: `word/media/image${i + 1}.${m.ext}`, data: m.data })),
   ]);
 }
