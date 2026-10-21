@@ -1,26 +1,28 @@
 // Reading text from page images with Tesseract, then laying it into the PDF as invisible
 // text so the page looks the same but can be searched, selected and copied.
-// Tesseract and its English data are about 7 MB, fetched the first time this runs.
+// Tesseract and its English data are about 7 MB, fetched the first time this runs; French adds
+// under 1 MB more, only when it's chosen.
 
 import { lib, drawPage, uprightPoint } from "./pdf.js";
 
 const here = (path) => new URL(`../vendor/tesseract/${path}`, import.meta.url).href;
-let starting;
+const starting = new Map();
 
-// One worker, kept for the session: starting it is the slow part.
-export function reader(onProgress) {
-  starting ??= (async () => {
+// One worker per language choice ("eng", "fra" or "eng+fra"), kept for the session: starting
+// one is the slow part.
+export function reader(onProgress, langs = "eng") {
+  if (!starting.has(langs)) starting.set(langs, (async () => {
     const { default: Tesseract } = await import("../vendor/tesseract/tesseract.esm.min.js");
-    return Tesseract.createWorker("eng", 1, {
+    return Tesseract.createWorker(langs, 1, {
       workerPath: here("worker.min.js"),
       corePath: here("core"),
       langPath: here("lang"),
       gzip: true,
       logger: (m) => reader.listener?.(m),
     });
-  })().catch((err) => { starting = null; throw err; });
+  })().catch((err) => { starting.delete(langs); throw err; }));
   reader.listener = onProgress;
-  return starting;
+  return starting.get(langs);
 }
 
 // Draws page `number` (1-based) sharp enough to read, about 300 dpi, capped so a huge page

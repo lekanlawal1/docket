@@ -26,6 +26,16 @@ export async function makeFixtures(dir) {
   doc.getPage(3).setRotation(degrees(90));
   writeFileSync(join(dir, "lease.pdf"), await doc.save());
 
+  // a page in French, for reading scans in another language
+  const fr = await PDFDocument.create();
+  const frFont = await fr.embedFont(StandardFonts.Helvetica);
+  const fp1 = fr.addPage([612, 792]);
+  ["Bail résidentiel", "Le locataire s'engage à payer un loyer de 1 450 $ le premier jour du mois.",
+    "Le propriétaire doit effectuer les réparations nécessaires dans un délai raisonnable.",
+    "Les animaux de compagnie sont acceptés. Le dépôt de garantie est interdit en Ontario."]
+    .forEach((t, i) => fp1.drawText(t, { x: 50, y: 720 - i * 28, size: i ? 13 : 20, font: frFont }));
+  writeFileSync(join(dir, "bail.pdf"), await fr.save());
+
   const small = await PDFDocument.create();
   small.addPage([612, 792]).drawText("A second file", { x: 50, y: 700, size: 14, font: await small.embedFont(StandardFonts.Helvetica) });
   writeFileSync(join(dir, "second.pdf"), await small.save());
