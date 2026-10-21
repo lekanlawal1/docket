@@ -121,3 +121,24 @@ test("pictures go between the right paragraphs; scans and repeated logos don't",
   const order = withPictures(paras, pics, pages).map((p) => (p.picture ? `[${p.picture.key}]` : p.runs[0].text));
   assert.deepEqual(order, ["Intro", "[chart]", "After the chart", "Page two"]);
 });
+
+test("rows whose cells line up become a table, with number columns spotted", () => {
+  const rows = [["Fee", "Rate", "Amount"], ["Visa interchange", "1.65%", "$412.50"], ["Mastercard interchange", "1.58%", "$96.20"], ["Statement fee", "", "$9.95"]];
+  const lines = [{ text: "Fees this month", y: 80 }];
+  rows.forEach((r, i) => r.forEach((cell, k) => cell && lines.push({ text: cell, y: 120 + i * 18, x: [72, 300, 420][k], bold: i === 0 })));
+  lines.push({ text: "Rates are set by the card networks " + long, y: 220 });
+  const out = paragraphs([page(lines)]);
+  assert.equal(out.length, 3);
+  const t = out[1].table;
+  assert.ok(t, "no table found");
+  assert.deepEqual(t.rows.map((r) => r.map((c) => c.map((x) => x.text).join(""))), rows);
+  assert.deepEqual(t.numeric, [false, true, true]);
+});
+
+test("a single label and value, or ragged gaps, stay as text", () => {
+  const out = paragraphs([page([
+    { text: "Account number:", y: 100, x: 72 }, { text: "4417-2290", y: 100, x: 400 },
+    { text: "Some ordinary sentence of text here.", y: 140, x: 72 },
+  ])]);
+  assert.ok(out.every((p) => !p.table));
+});

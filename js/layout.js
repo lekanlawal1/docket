@@ -19,7 +19,9 @@ const PAGE_NUMBER = /^(page\s*)?\d{1,4}(\s*(of|\/)\s*\d{1,4})?$/i;
 // Pieces of text on one baseline, split wherever there's a gap wide enough to be a column
 // gutter or a table cell rather than a space.
 function lines(page) {
-  const items = page.items.filter((i) => i.str && i.size > 0).sort((a, b) => a.y - b.y || a.x - b.x);
+  // blank pieces are dropped: spaces come back from the real gaps, and a blank piece spanning
+  // a gap would glue two table cells together
+  const items = page.items.filter((i) => i.str && i.str.trim() && i.size > 0).sort((a, b) => a.y - b.y || a.x - b.x);
   const rows = [];
   for (const it of items) {
     const row = rows.find((r) => Math.abs(r.y - it.y) <= Math.min(r.size, it.size) * 0.4);
@@ -33,7 +35,7 @@ function lines(page) {
     let seg = null;
     for (const it of row.items) {
       const gap = seg ? it.x - seg.x1 : 0;
-      if (!seg || gap > Math.max(it.size, seg.size) * 2.5) {
+      if (!seg || gap > Math.max(it.size, seg.size) * 1.5) {
         seg = { x0: it.x, x1: it.x + it.width, y: row.y, size: it.size, runs: [], page: page.index };
         out.push(seg);
       } else if (gap > it.size * 0.15 && !/\s$/.test(seg.runs.at(-1)?.text || "") && !/^\s/.test(it.str)) {
@@ -79,7 +81,7 @@ function readingOrder(p) {
   const left = sides.filter((x) => x === "L").length, right = sides.filter((x) => x === "R").length;
   const twoCol = right >= 5 && left >= 5 && right >= p.lines.length * 0.25 && left >= p.lines.length * 0.25;
   const byY = [...p.lines].sort((a, b) => a.y - b.y || a.x0 - b.x0);
-  if (!twoCol) return mergeRow(byY);
+  if (!twoCol) return findTables(mergeRow(byY));
 
   const out = [];
   let band = [];
@@ -99,8 +101,10 @@ function readingOrder(p) {
 
 // On a one-column page, pieces split by a wide gap (a label and its value, a table row) go
 // back on one line with a tab between them.
+// Each piece is kept as a cell too, in case the rows turn out to be a table.
 function mergeRow(byY) {
   const out = [];
+  const cell = (s) => ({ x0: s.x0, x1: s.x1, text: s.text, runs: s.runs.map((r) => ({ ...r })) });
   for (const s of byY) {
     const prev = out.at(-1);
     if (prev && Math.abs(prev.y - s.y) <= Math.min(prev.size, s.size) * 0.4) {
@@ -108,9 +112,65 @@ function mergeRow(byY) {
       prev.text += "\t" + s.text;
       prev.x1 = s.x1;
       prev.bold = prev.bold && s.bold;
-    } else out.push({ ...s, runs: [...s.runs] });
+      prev.cells.push(cell(s));
+    } else out.push({ ...s, runs: [...s.runs], cells: [cell(s)] });
   }
   return out;
+}
+
+// Rows split into cells by wide gaps, two or more in a row and close together, whose cells
+// line up in the same columns, are a table. Anything less regular stays as tab-separated text.
+function findTables(rows) {
+  const out = [];
+  for (let i = 0; i < rows.length;) {
+    let j = i;
+    while (j < rows.length && rows[j].cells.length >= 2 && (j === i || rows[j].y - rows[j - 1].y < rows[j].size * 3)) j++;
+    const table = j - i >= 2 && asTable(rows.slice(i, j));
+    if (table) { out.push(table); i = j; } else out.push(rows[i++]);
+  }
+  return out;
+}
+
+const NUMBER = /^[\s$€£(−-]*\d[\d,. ]*%?\)?$/;
+
+function asTable(rows) {
+  // columns are the x ranges the cells occupy; cells that overlap a column belong to it
+  const slack = Math.max(...rows.map((r) => r.size));
+  let cols = [];
+  for (const r of rows) for (const c of r.cells) {
+    const col = cols.find((k) => c.x0 < k.x1 + slack && c.x1 > k.x0 - slack);
+    if (col) { col.x0 = Math.min(col.x0, c.x0); col.x1 = Math.max(col.x1, c.x1); } else cols.push({ x0: c.x0, x1: c.x1 });
+  }
+  cols.sort((a, b) => a.x0 - b.x0);
+  cols = cols.reduce((acc, c) => {               // growing columns can come to overlap; join those
+    const last = acc.at(-1);
+    if (last && c.x0 < last.x1) last.x1 = Math.max(last.x1, c.x1); else acc.push({ ...c });
+    return acc;
+  }, []);
+  if (cols.length < 2) return null;
+
+  const grid = [];
+  for (const r of rows) {
+    const cells = cols.map(() => null);
+    for (const c of r.cells) {
+      const k = cols.findIndex((col) => c.x0 < col.x1 + 1 && c.x1 > col.x0 - 1);
+      if (k < 0 || cells[k]) return null;          // two cells in one column: not a grid
+      cells[k] = c;
+    }
+    grid.push(cells);
+  }
+  // most of the grid should be filled, or it's scattered text rather than a table
+  if (grid.flat().filter(Boolean).length < grid.length * cols.length * 0.6) return null;
+
+  const numeric = cols.map((_, k) => {
+    const body = grid.slice(1).map((r) => r[k]).filter(Boolean);
+    return body.length > 0 && body.filter((c) => NUMBER.test(c.text)).length >= body.length * 0.6;
+  });
+  const first = rows[0], last = rows.at(-1);
+  return {
+    table: { rows: grid.map((r) => r.map((c) => (c ? c.runs : []))), widths: cols.map((c) => c.x1 - c.x0), numeric },
+    page: first.page, y: first.y, size: first.size, x0: cols[0].x0, x1: cols.at(-1).x1, lastY: last.y, text: "", runs: [], bold: false,
+  };
 }
 
 export function paragraphs(pagesIn) {
@@ -174,6 +234,11 @@ export function paragraphs(pagesIn) {
 
   let cur = null, prev = null;
   for (const [i, s] of ordered.entries()) {
+    if (s.table) {
+      out.push({ table: s.table, page: s.page, top: s.y - s.size });
+      cur = prev = null;                           // whatever comes next starts afresh
+      continue;
+    }
     const h = level(s);
     const marked = !h && (BULLET.test(s.text) || NUMBERED.test(s.text));
     const shapeBullet = !h && !marked && unmarked(i);
@@ -224,6 +289,7 @@ export function paragraphs(pagesIn) {
 
   // tidy runs: join neighbours with the same style, squeeze spaces
   for (const p of out) {
+    if (p.table) continue;
     const merged = [];
     for (const r of p.runs) {
       const last = merged.at(-1);
@@ -235,7 +301,7 @@ export function paragraphs(pagesIn) {
     p.runs = merged.filter((r) => r.text);
     delete p.x0;
   }
-  return out.filter((p) => p.runs.length);
+  return out.filter((p) => p.table || p.runs.length);
 }
 
 // Cuts the first `n` characters off a run list and puts `lead` in front.

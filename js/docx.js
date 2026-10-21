@@ -83,14 +83,31 @@ function paragraph(p) {
   return `<w:p>${props ? `<w:pPr>${props}</w:pPr>` : ""}${runs.map(run).join("")}</w:p>`;
 }
 
+// A table: light borders, column widths in proportion to the PDF's, number columns aligned
+// right, and a first row that's all bold repeated at the top of each page as a header.
+function table({ rows, widths, numeric }, room) {
+  const total = widths.reduce((a, b) => a + b, 0) || 1;
+  const tw = widths.map((w) => Math.max(400, Math.round((w / total) * room)));
+  const border = (side) => `<w:${side} w:val="single" w:sz="4" w:space="0" w:color="BFBFBF"/>`;
+  const header = rows[0].length && rows[0].every((cell) => !cell.length || cell.every((r) => r.bold || !r.text.trim()));
+  const tr = (cells, i) => `<w:tr>${i === 0 && header ? "<w:trPr><w:tblHeader/></w:trPr>" : ""}${cells.map((runs, k) =>
+    `<w:tc><w:tcPr><w:tcW w:w="${tw[k]}" w:type="dxa"/></w:tcPr><w:p><w:pPr><w:spacing w:before="40" w:after="40"/>${numeric[k] && !(i === 0 && header) ? '<w:jc w:val="right"/>' : ""}</w:pPr>${runs.map(run).join("")}</w:p></w:tc>`).join("")}</w:tr>`;
+  return `<w:tbl><w:tblPr><w:tblW w:w="0" w:type="auto"/><w:tblBorders>${["top", "left", "bottom", "right", "insideH", "insideV"].map(border).join("")}</w:tblBorders>
+<w:tblLayout w:type="fixed"/><w:tblCellMar><w:left w:w="100" w:type="dxa"/><w:right w:w="100" w:type="dxa"/></w:tblCellMar></w:tblPr>
+<w:tblGrid>${tw.map((w) => `<w:gridCol w:w="${w}"/>`).join("")}</w:tblGrid>${rows.map(tr).join("")}</w:tbl>`;
+}
+
 // paragraphs: [{ heading?: 1|2|3, list?: true, runs: [{ text, bold?, italic? }] }], or
+// [{ table: { rows: [[runs per cell]], widths, numeric } }], or
 // [{ picture: { data: Uint8Array, ext: "png" | "jpeg", width, height } }] with the size in points
 // page: { width, height } in points, for the document's page size
 export function docx(paragraphs, { title = "", page = { width: 612, height: 792 } } = {}) {
   const twips = (pt) => Math.round(pt * 20);
   // pictures are shrunk to fit between the margins (an inch each side), never enlarged
   const media = [], room = page.width - 144;
-  const body = paragraphs.map((p) => {
+  const body = paragraphs.map((p, i) => {
+    // Word expects a paragraph after a table, so one that ends the document gets an empty one
+    if (p.table) return table(p.table, room * 20) + (i === paragraphs.length - 1 ? "<w:p/>" : "");
     if (!p.picture) return paragraph(p);
     media.push(p.picture);
     const k = Math.min(1, room / p.picture.width);
