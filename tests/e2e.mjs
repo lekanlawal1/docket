@@ -22,7 +22,7 @@ const base = process.env.BASE || `http://localhost:${server.address().port}/`;
 
 const fx = await mkdtemp(join(tmpdir(), "docket-"));
 await makeFixtures(fx);
-const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf");
+const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf");
 
 const browser = await chromium.launch({
   ...(process.env.CHROME && { executablePath: process.env.CHROME }),
@@ -74,6 +74,7 @@ const readPdf = (data) => page.evaluate(async (b64) => {
   return { pages: doc.numPages, texts: await pageTexts(doc) };
 }, data.toString("base64"));
 
+const pdfLib = () => import("../vendor/pdf-lib/pdf-lib.esm.min.js");
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 const goodStatus = async () => expect(await page.locator(".desk .status.good").count(), "no success message: " + await page.locator(".desk .status").innerText());
 
@@ -185,6 +186,19 @@ await check("compress refuses when the result isn't smaller", async () => {
   await open("compress", [lease]);
   await page.locator(".desk .go").click();
   await page.waitForSelector(".desk .status.bad, .desk .status.good", { timeout: 30_000 });
+});
+
+await check("compress shrinks the pictures and keeps the text", async () => {
+  await open("compress", [photo]);
+  const before = (await readFile(photo)).length;
+  const { data } = await save();
+  await goodStatus();
+  expect(data.length < before * 0.5, `only ${before} -> ${data.length} bytes`);
+  const out = await readPdf(data);
+  expect(out.texts[0].includes("Harbour inspection report"), "text lost");
+  const { PDFDocument, PDFName, PDFDict } = await pdfLib();
+  const xo = (await PDFDocument.load(data)).getPage(0).node.Resources().lookup(PDFName.of("XObject"), PDFDict);
+  expect(xo && xo.keys().length === 1, "picture missing");
 });
 
 await check("grayscale", async () => {
@@ -319,7 +333,6 @@ await check("pdf to word on a browser-printed document keeps its structure", asy
 
 // ---- the interactive parts: dragging, drawing, reordering, and codes a phone can read
 
-const pdfLib = () => import("../vendor/pdf-lib/pdf-lib.esm.min.js");
 const zipNames = async (data) => {
   const path = join(fx, "out.zip");
   await (await import("node:fs/promises")).writeFile(path, data);

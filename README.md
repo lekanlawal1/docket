@@ -23,7 +23,8 @@ Most free PDF sites upload your file to their server to do something your own co
 ## Things worth knowing
 
 - **Redaction is real.** Pages with boxes are redrawn as images with the boxes burned in, so the text underneath is gone, not hidden under a rectangle. The result is then read back, and if any redacted text can still be found, nothing is saved.
-- **Some tools turn pages into images.** Redact (only the pages you mark), Grayscale and the stronger Compress levels do this. Text on those pages can't be selected afterwards, and each tool says so before you run it.
+- **Compress keeps your text.** It shrinks the pictures inside the PDF and leaves the text alone, so it stays sharp and selectable. Only the "Flatten" level, a last resort, turns pages into pictures.
+- **Some tools turn pages into images.** Redact (only the pages you mark), Grayscale and Compress's Flatten level do this. Text on those pages can't be selected afterwards, and each tool says so before you run it.
 - **Compress won't hand you a bigger file.** If the result isn't smaller, it tells you instead of downloading it.
 - **The summary doesn't use AI.** It picks the sentences that best represent the document from the document itself, so it can't invent anything. It's a quick way in, not a replacement for reading.
 - **Passwords use AES-256,** and the locked file is opened twice before you get it: once without the password (it must refuse) and once with it (it must open). Print and copy restrictions are honoured by most PDF apps but aren't real locks, and the page says so.
