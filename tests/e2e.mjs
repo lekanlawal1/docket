@@ -276,9 +276,40 @@ await check("make searchable: a scan becomes searchable text", async () => {
   expect(out.texts[1].includes("Page 2"), "page 2 (already text) lost its text");
 });
 
-await check("tools that aren't built say so", async () => {
-  await open("pdf-to-word");
-  expect(await page.locator(".dock").count() === 0, "showed a drop zone for an unbuilt tool");
+await check("pdf to word", async () => {
+  await open("pdf-to-word", [lease]);
+  await page.waitForSelector(".doc-preview p");
+  const { name, data } = await save();
+  expect(name.endsWith(".docx"), "name: " + name);
+  const script = "import sys, zipfile, xml.dom.minidom\nz = zipfile.ZipFile(sys.argv[1])\nfor n in z.namelist(): xml.dom.minidom.parseString(z.read(n))\nprint(z.read('word/document.xml').decode())";
+  const path = join(fx, "lease.docx");
+  await (await import("node:fs/promises")).writeFile(path, data);
+  const xml = (await import("node:child_process")).execFileSync("python3", ["-c", script, path], { encoding: "utf8" });
+  for (const w of ["14 Harbour Road", "$1,450", "landlord@example.com"]) expect(xml.includes(w), "missing " + w);
+});
+
+await check("pdf to word on a browser-printed document keeps its structure", async () => {
+  // a real-world PDF: printed by Chromium, with a running header, page numbers and drawn bullets
+  const para = "The tenant agrees to keep the unit clean and in good repair, to report any damage promptly, and to allow reasonable access for repairs with written notice.";
+  const printer = await browser.newPage();
+  await printer.setContent(`<body style="font-family: Georgia, serif; font-size: 12pt; margin: 0">
+    <h1>Residential Lease</h1><p>Made on <b>March 1, 2026</b> between the <i>landlord</i> and the tenant.</p>
+    <h2>1. Rent</h2><p>${para} ${para}</p><p>Payments can be made by:</p>
+    <ul><li>e-transfer to the landlord</li><li>post-dated cheques</li><li>pre-authorised debit</li></ul>
+    <h2>2. Ending the lease</h2>${`<p>${para} ${para} ${para}</p>`.repeat(9)}</body>`);
+  const printed = join(fx, "printed.pdf");
+  await printer.pdf({ path: printed, format: "Letter", margin: { top: "72px", bottom: "72px", left: "72px", right: "72px" }, displayHeaderFooter: true,
+    headerTemplate: '<div style="font-size:8px;width:100%;text-align:center">Harbour Rentals - Lease</div>',
+    footerTemplate: '<div style="font-size:8px;width:100%;text-align:center">Page <span class="pageNumber"></span> of <span class="totalPages"></span></div>' });
+  await printer.close();
+
+  await open("pdf-to-word", [printed]);
+  await page.waitForSelector(".doc-preview p");
+  const shape = await page.$$eval(".doc-preview > *", (els) => els.map((e) => (e.tagName === "P" ? (e.className === "li" ? "li" : "p") : e.tagName.toLowerCase())));
+  const text = await page.locator(".doc-preview").innerText();
+  expect(shape.join(" ") === "h2 p h3 p p li li li h3 " + "p ".repeat(9).trim(), "structure: " + shape.join(" ") + " | " + text.slice(0, 80));
+  expect(!/Harbour Rentals|Page \d of/.test(text), "header or footer kept");
+  expect(await page.locator(".doc-preview b", { hasText: "March 1, 2026" }).count() === 1, "bold lost");
 });
 
 await browser.close();
