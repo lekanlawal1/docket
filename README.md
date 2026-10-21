@@ -63,6 +63,7 @@ Plain HTML, CSS and JavaScript modules. No framework.
 - [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) makes QR codes.
 - [qpdf](https://github.com/qpdf/qpdf), compiled to WebAssembly by [qpdf-wasm](https://github.com/neslinesli93/qpdf-wasm), adds and removes passwords. It's only downloaded when the Password tool is used.
 - [Tesseract.js](https://github.com/naptha/tesseract.js) with Tesseract's English and French data reads scanned pages for Make searchable. About 7 MB, downloaded the first time that tool runs (French adds 0.7 MB, only if chosen).
+- [heic-to](https://github.com/hoppergee/heic-to) (libheif) opens iPhone photos (HEIC) in browsers other than Safari. About 3 MB, downloaded only when a HEIC photo is opened. It's LGPL-3.0 and kept unmodified in its own file, `vendor/heic-to/`, with its licence.
 
 All of them are vendored in `vendor/`, with their licences, so the site works offline once loaded and doesn't depend on a CDN.
 

@@ -240,6 +240,24 @@ await check("compress image under 100 KB", async () => {
   expect(data.length <= 100 * 1024, `still ${data.length} bytes`);
 });
 
+// iPhone photos: libheif's own sample image, fetched at test time rather than kept in the repo
+const heic = join(fx, "example.heic");
+const haveHeic = await fetch("https://raw.githubusercontent.com/strukturag/libheif/master/examples/example.heic")
+  .then(async (r) => r.ok && (await (await import("node:fs/promises")).writeFile(heic, Buffer.from(await r.arrayBuffer())), true)).catch(() => false);
+
+await check("iPhone photos (HEIC) open in Chromium, which can't read them itself", async () => {
+  if (!haveHeic) { console.log("     (skipped: couldn't download the sample HEIC)"); return; }
+  await open("resize-image", [heic]);
+  await page.waitForSelector(".main .result", { timeout: 60_000 });
+  const size = await page.locator(".main .result small").innerText();
+  expect(/\d+ × \d+/.test(size), "no picture size shown: " + size);
+  const { name, data } = await save();
+  expect(name.endsWith(".jpg") && data[0] === 0xff && data[1] === 0xd8, "not a JPG: " + name);
+  await open("images-to-pdf", [heic]);
+  await page.waitForSelector(".lineup li", { timeout: 60_000 });
+  expect((await readPdf((await save()).data)).pages === 1, "the photo didn't become a page");
+});
+
 await check("qr code", async () => {
   await open("qr");
   await page.fill("[name=text]", "https://example.com");

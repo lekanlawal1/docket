@@ -4,10 +4,23 @@ import { dock, h, esc, bytes } from "./ui.js";
 
 export const FORMATS = { "image/jpeg": "jpg", "image/png": "png", "image/webp": "webp" };
 
+const isHeic = (file) => /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(file.name);
+
+// iPhone photos (HEIC) only open natively in Safari. Elsewhere they go through libheif, about
+// 3 MB, which is only fetched when one turns up.
 export async function openImage(file) {
   const bitmap = await createImageBitmap(file).catch(() => null);
-  if (!bitmap) throw new Error(`${file.name} can't be opened by this browser${/heic|heif/i.test(file.name) ? " (HEIC photos only open in Safari; export it as JPG first)" : ""}.`);
-  return bitmap;
+  if (bitmap) return bitmap;
+  if (isHeic(file)) {
+    try {
+      const { heicTo } = await import("../vendor/heic-to/heic-to.js");
+      return await heicTo({ blob: file, type: "bitmap" });
+    } catch (err) {
+      console.error(err);
+      throw new Error(`${file.name} couldn't be read. It may be damaged, or a kind of HEIC this can't open; try exporting it as JPG.`);
+    }
+  }
+  throw new Error(`${file.name} can't be opened by this browser.`);
 }
 
 // Draws `bitmap` onto a w×h canvas. With `crop`, it fills the frame and trims the overflow
@@ -37,7 +50,7 @@ export function oneImage(main, { files = [], onLoad }) {
   const isImage = (f) => /^image\//.test(f.type) || /\.(jpe?g|png|webp|gif|bmp|avif|heic|heif)$/i.test(f.name);
   const start = () => {
     main.innerHTML = "";
-    main.append(dock({ accept: "image/*,.heic,.heif", title: "Drop a picture here", hint: "JPG, PNG, WebP and most others.", onFiles: ([f]) => open(f) }));
+    main.append(dock({ accept: "image/*,.heic,.heif", title: "Drop a picture here", hint: "JPG, PNG, WebP, iPhone photos (HEIC) and most others.", onFiles: ([f]) => open(f) }));
   };
   const open = async (file) => {
     if (!isImage(file)) { start(); main.append(h(`<p class="status bad">${esc(file.name)} isn't a picture.</p>`)); return; }
