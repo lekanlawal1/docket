@@ -17,6 +17,11 @@ function script() {
 // Runs qpdf once on `bytes` with `args` (input and output paths are added) and returns the
 // output bytes. A fresh instance each time keeps one failed run from affecting the next.
 export async function qpdf(bytes, args) {
+  return (await qpdfRun(bytes, args)).data;
+}
+
+// The same, also returning what qpdf said and its exit code (3 means it had to fix things).
+export async function qpdfRun(bytes, args) {
   const create = await script();
   const messages = [];
   // this build ignores the usual print hooks and binds console.log/error when it's created,
@@ -38,7 +43,7 @@ export async function qpdf(bytes, args) {
     err.badPassword = /invalid password/i.test(text);
     throw err;
   }
-  return q.FS.readFile("/out.pdf");
+  return { data: q.FS.readFile("/out.pdf"), messages, code };
 }
 
 // Whether a file is encrypted, from its trailer. Cheap, and good enough to pick a starting tab.
