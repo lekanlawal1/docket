@@ -579,6 +579,16 @@ await check("pdf to word on a browser-printed document keeps its structure", asy
   expect(!/Harbour Rentals|Page \d of/.test(text), "header or footer kept");
   expect(await page.locator(".doc-preview b", { hasText: "March 1, 2026" }).count() === 1, "bold lost");
 });
+await check("extract images: the chart once, the header logo once (it's on both pages)", async () => {
+  await open("extract-images", [join(fx, "printed.pdf")]);
+  await page.waitForSelector(".image-grid figure");
+  const captions = await page.$$eval(".image-grid figcaption", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ")));
+  expect(captions.length === 2, "expected 2 distinct images: " + captions.join(" | "));
+  expect(captions.some((c) => /page 1, 2/.test(c)), "the logo should be listed once for pages 1 and 2: " + captions.join(" | "));
+  const { name, data } = await save();
+  expect(name.endsWith(".zip") && (await zipNames(data)).length === 2, "zip should hold 2 images");
+});
+
 
 // ---- the interactive parts: dragging, drawing, reordering, and codes a phone can read
 

@@ -269,6 +269,10 @@ ol.out-text { white-space: normal; padding-left: 40px; }
 .doc-preview > :first-child { margin-top: 0; }
 .pv-table { border-collapse: collapse; margin: 0 0 .9em; font-size: 14px; }
 .pv-table td { border: 1px solid var(--field-line); padding: 4px 8px; vertical-align: top; }
+.image-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(170px, 1fr)); gap: 14px; }
+.image-grid figure { margin: 0; padding: 10px; border-radius: 12px; background: var(--card); border: 1px solid var(--card-line); }
+.image-grid img { display: block; width: 100%; height: 130px; object-fit: contain; background: repeating-conic-gradient(var(--field) 0 25%, transparent 0 50%) 0 0 / 16px 16px; border-radius: 6px; }
+.image-grid figcaption { margin-top: 6px; font-size: 12.5px; color: var(--muted); }
 .sheet-preview section { margin-bottom: 18px; }
 .sheet-preview h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
 .sheet-preview .sheet-scroll { overflow-x: auto; max-width: 100%; }
