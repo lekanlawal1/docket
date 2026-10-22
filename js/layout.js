@@ -339,3 +339,12 @@ export function withPictures(paras, pictures, pages) {
   while (i < keep.length) out.push({ picture: keep[i], page: keep[i++].page });
   return out;
 }
+
+// Every line of text as a row of cells (split where the gaps are wide), page by page, for
+// spreadsheets when a page's layout isn't a clean table. Repeated headers and footers are left out.
+export function textRows(pagesIn) {
+  const pages = pagesIn.map((p, index) => ({ ...p, index }));
+  for (const p of pages) p.lines = lines(p);
+  dropRepeats(pages);
+  return pages.map((p) => mergeRow([...p.lines].sort((a, b) => a.y - b.y || a.x0 - b.x0)).map((r) => r.cells.map((c) => c.text)));
+}

@@ -12,6 +12,7 @@ export const PIERS = [
     { id: "pdf-to-jpg", name: "PDF to JPG", icon: "porthole", what: "Every page as an image, at the size you pick." },
     { id: "images-to-pdf", name: "Images to PDF", icon: "shell", what: "Photos and scans into one tidy PDF." },
     { id: "pdf-to-word", name: "PDF to Word", icon: "sailboat", what: "Text and paragraphs into an editable document." },
+    { id: "pdf-to-excel", name: "PDF to Excel", icon: "crate", what: "Tables into a spreadsheet, with amounts as real numbers." },
     { id: "pdf-to-text", name: "PDF to text", icon: "bottle", what: "Just the words, ready to paste." },
   ] },
   { no: "03", name: "Edit and sign", blurb: "Mark it up and make it yours", tint: "--tint-3", tools: [
