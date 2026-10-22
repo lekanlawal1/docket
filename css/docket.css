@@ -234,6 +234,20 @@ footer.foot { display: flex; flex-wrap: wrap; justify-content: space-between; ga
 .stage canvas { display: block; max-width: 100%; height: auto; background: #fff; box-shadow: 0 1px 6px rgba(0,0,0,.2); border-radius: 4px; }
 .stage .box { position: absolute; background: rgba(0,0,0,.85); outline: 2px solid #E66767; }
 .stage .box button { position: absolute; top: -12px; right: -12px; width: 26px; height: 26px; border-radius: 50%; border: 0; background: #E66767; color: #fff; cursor: pointer; font-weight: 700; line-height: 1; }
+.stage.annotate { cursor: crosshair; }
+.stage .mark { position: absolute; }
+.stage .mark .x { position: absolute; top: -12px; right: -12px; width: 24px; height: 24px; border-radius: 50%; border: 0; background: #E66767; color: #fff; cursor: pointer; font-weight: 700; line-height: 1; opacity: 0; transition: opacity .15s; z-index: 2; }
+.stage .mark:hover .x, .stage .mark:focus-within .x { opacity: 1; }
+@media (hover: none) { .stage .mark .x { opacity: 1; } }
+.stage .mark.highlight { background: rgba(255, 222, 51, .4); cursor: move; }
+.stage .mark.whiteout { background: #fff; outline: 1px dashed #9aa; cursor: move; }
+.stage .mark.check, .stage .mark.cross { cursor: move; }
+.stage .mark svg { display: block; width: 100%; height: 100%; }
+.stage .mark.text .words { font-family: Helvetica, Arial, sans-serif; line-height: 1.2; white-space: pre; min-width: 2ch; padding: 0; margin: 0; cursor: text; outline: 1.5px dashed var(--focus); outline-offset: 2px; background: transparent; }
+.stage .mark.text .words:focus { outline-style: solid; }
+.stage .mark.text .grip { position: absolute; left: -24px; top: -2px; width: 20px; height: 22px; display: grid; place-items: center; font-size: 15px; line-height: 1; color: var(--ink); background: var(--card); border: 1px solid var(--card-line); border-radius: 6px; cursor: move; touch-action: none; }
+.tool-pick { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.tool-pick .pill { padding: 8px 14px; min-width: 44px; }
 .stage .sig { position: absolute; cursor: move; outline: 1.5px dashed var(--focus); }
 .stage .sig img { display: block; width: 100%; height: 100%; pointer-events: none; }
 .pager { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; font-size: 14px; color: var(--muted); }
