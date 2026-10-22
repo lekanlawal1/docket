@@ -1,5 +1,5 @@
 // Builds the PDFs and picture the browser tests use, so no binary files live in the repo.
-import { PDFDocument, PDFName, PDFString, StandardFonts, rgb, degrees } from "../vendor/pdf-lib/pdf-lib.esm.min.js";
+import { PDFDocument, PDFName, PDFString, PDFOperator, StandardFonts, rgb, degrees } from "../vendor/pdf-lib/pdf-lib.esm.min.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -133,6 +133,7 @@ export async function makeFixtures(dir) {
   annot(m1, { Subtype: "Link", Rect: [60, 200, 200, 220], Border: [0, 0, 0], A: { S: "URI", URI: PDFString.of("https://example.com/terms") } });
   const m2 = marked.addPage([612, 792]);
   m2.setRotation(degrees(90));
+  annot(m2, { Subtype: "Link", Rect: [100, 300, 260, 320], Border: [0, 0, 0], A: { S: "URI", URI: PDFString.of("https://example.com/annex") } });
   annot(m2, { Subtype: "Square", Rect: [100, 100, 200, 200], AP: { N: look("0.5 0 0.5 rg 0 0 100 100 re f", [0, 0, 100, 100]) } });
   writeFileSync(join(dir, "marked.pdf"), await marked.save());
 
@@ -143,6 +144,41 @@ export async function makeFixtures(dir) {
   const href = bare.context.register(bare.context.obj({ Type: "Annot", Subtype: "Highlight", Rect: [56, 698, 220, 722], C: [1, 0.9, 0], QuadPoints: [56, 722, 220, 722, 56, 698, 220, 698] }));
   b1.node.set(PDFName.of("Annots"), bare.context.obj([href]));
   writeFileSync(join(dir, "bare-highlight.pdf"), await bare.save());
+
+  // an offer letter carrying everything a file can carry: details, a reviewer's comment, an
+  // attached spreadsheet, scripts, a link, a hidden layer, and an earlier version of itself
+  const messy = await PDFDocument.create({ updateMetadata: false });
+  messy.setAuthor("Priya Hidden-Author");
+  messy.setTitle("Old draft title");
+  const mf = await messy.embedFont(StandardFonts.Helvetica);
+  const mc = messy.context;
+  const mp = messy.addPage([612, 792]);
+  mp.drawText("Offer letter", { x: 60, y: 720, size: 20, font: mf });
+  const ocg = mc.register(mc.obj({ Type: "OCG", Name: PDFString.of("Internal notes") }));
+  messy.catalog.set(PDFName.of("OCProperties"), mc.obj({ OCGs: [ocg], D: { ON: [], OFF: [ocg], Order: [ocg] } }));
+  mp.node.Resources().set(PDFName.of("Properties"), mc.obj({ L1: ocg }));
+  mp.pushOperators(PDFOperator.of("BDC", [PDFName.of("OC"), PDFName.of("L1")]));
+  mp.drawText("SALARY BAND 95K INTERNAL", { x: 60, y: 600, size: 14, font: mf });
+  mp.pushOperators(PDFOperator.of("EMC"));
+  const popup = mc.register(mc.obj({ Type: "Annot", Subtype: "Popup", Rect: [300, 600, 500, 700] }));
+  const note = mc.register(mc.obj({ Type: "Annot", Subtype: "Text", Rect: [520, 700, 540, 720], Contents: PDFString.of("Reviewer note: offer them less"), Popup: popup }));
+  const link = mc.register(mc.obj({ Type: "Annot", Subtype: "Link", Rect: [60, 500, 260, 520], Border: [0, 0, 0], A: { S: "URI", URI: PDFString.of("https://example.com/offer") } }));
+  const clicky = mc.register(mc.obj({ Type: "Annot", Subtype: "Link", Rect: [60, 460, 260, 480], Border: [0, 0, 0], A: { S: "JavaScript", JS: PDFString.of("app.alert('clicked')") } }));
+  mp.node.set(PDFName.of("Annots"), mc.obj([note, popup, link, clicky]));
+  await messy.attach(new TextEncoder().encode("name,salary\nSam,95000\n"), "salary-sheet.csv", { mimeType: "text/csv" });
+  messy.addJavaScript("greet", "app.alert('tracking')");
+  messy.catalog.set(PDFName.of("OpenAction"), mc.obj({ S: "JavaScript", JS: PDFString.of("app.alert('opened')") }));
+  const first = Buffer.from(await messy.save({ useObjectStreams: false }));
+  // saved again by adding to the end: a new title, with the old one still inside
+  const raw = first.toString("latin1");
+  const prev = Number(raw.match(/startxref\s+(\d+)/g).pop().match(/\d+/)[0]);
+  const size = Number(raw.match(/\/Size (\d+)/g).pop().match(/\d+/)[0]);
+  const root = raw.match(/\/Root (\d+ \d+ R)/g).pop().slice(6);
+  const objAt = first.length + 1;
+  const obj = `\n${size} 0 obj\n<< /Title (Final offer) /Author (Priya Hidden-Author) >>\nendobj\n`;
+  const xrefAt = first.length + obj.length;
+  const update = obj + `xref\n0 1\n0000000000 65535 f \n${size} 1\n${String(objAt).padStart(10, "0")} 00000 n \ntrailer\n<< /Size ${size + 1} /Root ${root} /Info ${size} 0 R /Prev ${prev} >>\nstartxref\n${xrefAt}\n%%EOF\n`;
+  writeFileSync(join(dir, "messy.pdf"), Buffer.concat([first, Buffer.from(update, "latin1")]));
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await makeFixtures(process.argv[2] || "tests/.fixtures");

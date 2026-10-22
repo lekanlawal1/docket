@@ -338,3 +338,10 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .ocr-result textarea { width: 100%; min-height: 320px; line-height: 1.5; }
 .row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
 .camera-btn svg.art { stroke: currentColor; flex: none; }
+.clean-found .found { padding: 10px 0; border-top: 1px solid var(--card-line); }
+.clean-found .found:first-of-type { border-top: 0; }
+.clean-found h3 { margin: 0 0 6px; font-size: 16px; }
+.clean-found p, .clean-found ul { margin: 4px 0; font-size: 15px; }
+.clean-found ul { padding-left: 20px; overflow-wrap: anywhere; }
+.facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
+.facts dt { font-weight: 600; } .facts dd { margin: 0; overflow-wrap: anywhere; }

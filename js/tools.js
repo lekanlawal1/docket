@@ -32,7 +32,7 @@ export const PIERS = [
   { no: "04", name: "Protect", blurb: "Keep what's private, private", tint: "--tint-4", tools: [
     { id: "redact", name: "Redact", icon: "octopus", what: "Black out text for real, then check it's gone." },
     { id: "password", name: "Password", icon: "chest", what: "Lock a PDF, or unlock one you have the password for." },
-    { id: "metadata", name: "Remove metadata", icon: "jelly", what: "See and strip the author, dates and hidden details." },
+    { id: "metadata", name: "Clean for sharing", icon: "jelly", what: "Strip hidden details, comments, attachments and scripts before you send it." },
   ] },
   { no: "05", name: "Shrink and fix", blurb: "Smaller, cleaner files", tint: "--tint-5", tools: [
     { id: "compress", name: "Compress", icon: "puffer", what: "Make a scanned PDF small enough to email or upload." },
