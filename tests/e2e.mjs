@@ -98,6 +98,18 @@ await check("night mode toggles and is remembered", async () => {
   await page.click("#theme");
 });
 
+await check("the portfolio bar only loads for visitors from the portfolio", async () => {
+  const fresh = await browser.newContext({ ignoreHTTPSErrors: true });
+  const p1 = await fresh.newPage();
+  await p1.goto(base);
+  expect(await p1.locator('script[src*="portfolio-bar.js"]').count() === 0, "bar loaded for a direct visit");
+  await p1.goto(base, { referer: "https://lekanlawal1.github.io/portfolio-site/index.html#docket" });
+  expect(await p1.locator('script[src*="portfolio-bar.js"]').count() === 1, "bar missing for a visitor from the portfolio");
+  await p1.reload();
+  expect(await p1.locator('script[src*="portfolio-bar.js"]').count() === 1, "bar gone after a reload");
+  await fresh.close();
+});
+
 await check("merge", async () => {
   await open("merge", [lease, second]);
   const out = await readPdf((await save()).data);

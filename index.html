@@ -43,7 +43,21 @@
   <span>Docket, by <a href="https://lekanlawal1.github.io/portfolio-site/">Lekan Lawal</a></span>
 </footer>
 
-<script src="https://lekanlawal1.github.io/portfolio-site/portfolio-bar.js" data-project="dock" defer></script>
+<script>
+  // The portfolio's "back to all projects" strip, only for visitors who came from the portfolio.
+  // Remembered for the tab, so it survives a reload; anyone else just sees Docket.
+  (() => {
+    let fromPortfolio = false;
+    try {
+      fromPortfolio = /^https:\/\/lekanlawal1\.github\.io\/portfolio-site\//.test(document.referrer) || sessionStorage.getItem("from-portfolio") === "1";
+      if (fromPortfolio) sessionStorage.setItem("from-portfolio", "1");
+    } catch { /* storage blocked: go by the referrer alone */ }
+    if (!fromPortfolio) return;
+    const bar = Object.assign(document.createElement("script"), { src: "https://lekanlawal1.github.io/portfolio-site/portfolio-bar.js", defer: true });
+    bar.dataset.project = "dock";
+    document.head.append(bar);
+  })();
+</script>
 <script src="vendor/qrcode/qrcode.js"></script>
 <script type="module" src="js/main.js"></script>
 </body>
