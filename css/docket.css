@@ -217,6 +217,7 @@ footer.foot { display: flex; flex-wrap: wrap; justify-content: space-between; ga
 .pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 14px; }
 .page-card { display: flex; flex-direction: column; gap: 8px; padding: 10px; border-radius: 14px; background: var(--card); border: 1px solid var(--card-line); }
 .page-card.off { opacity: .4; }
+.page-card.drop { opacity: .55; outline: 2px dashed var(--bad); outline-offset: -2px; }
 .page-card .thumb { aspect-ratio: 0.77; display: grid; place-items: center; background: var(--field); border-radius: 8px; overflow: hidden; }
 .page-card canvas, .page-card img { max-width: 100%; max-height: 100%; box-shadow: 0 1px 4px rgba(0,0,0,.18); background: #fff; transition: transform .25s; }
 .page-card .label { display: flex; justify-content: space-between; align-items: center; font-size: 13px; color: var(--muted); }
