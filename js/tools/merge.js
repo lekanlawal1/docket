@@ -1,11 +1,11 @@
 import { h, esc, dock, download, bytes, plural, busy, status } from "../ui.js";
 import { svg } from "../icons.js";
-import { lib, readBytes } from "../pdf.js";
+import { lib, readBytes, openForEdit } from "../pdf.js";
 
 export const intro = "Line the files up in the order you want, then merge. Everything happens on this device.";
 
 export function mount({ main, desk, files, privateNote }) {
-  let list = [];   // [{ file, pages }]
+  let list = [];   // [{ file, raw, pages }]
 
   const lineup = h(`<ol class="lineup"></ol>`);
   const more = dock({ accept: ".pdf,application/pdf", multiple: true, small: true, title: "Add PDFs", onFiles: add });
@@ -18,14 +18,15 @@ export function mount({ main, desk, files, privateNote }) {
   const go = desk.querySelector("button"), out = desk.querySelector(".status"), nameInput = desk.querySelector("input");
 
   async function add(newFiles) {
-    const { PDFDocument } = await lib();
     for (const file of newFiles) {
       if (!/\.pdf$/i.test(file.name) && file.type !== "application/pdf") { status(out, `${file.name} isn't a PDF, so it was skipped.`, "bad"); continue; }
       try {
-        const doc = await PDFDocument.load(await readBytes(file), { updateMetadata: false });
-        list.push({ file, pages: doc.getPageCount() });
+        const raw = await readBytes(file);
+        const doc = await openForEdit(raw);
+        list.push({ file, raw, pages: doc.getPageCount() });
       } catch (err) {
-        status(out, `${file.name} couldn't be opened${/encrypt/i.test(err.message) ? " (it's password-protected)" : ""}, so it was skipped.`, "bad");
+        console.warn(file.name, err);
+        status(out, `${file.name} was skipped: ${err.message.replace(/^This PDF's/, "its").replace(/^This PDF is/, "it's")}`, "bad");
       }
     }
     draw();
@@ -64,8 +65,8 @@ export function mount({ main, desk, files, privateNote }) {
   go.addEventListener("click", () => busy(go, out, "Merging...", async () => {
     const { PDFDocument } = await lib();
     const merged = await PDFDocument.create();
-    for (const { file } of list) {
-      const src = await PDFDocument.load(await readBytes(file), { updateMetadata: false });
+    for (const { raw } of list) {
+      const src = await openForEdit(raw);
       for (const page of await merged.copyPages(src, src.getPageIndices())) merged.addPage(page);
     }
     const data = await merged.save();

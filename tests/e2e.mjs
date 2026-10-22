@@ -948,6 +948,34 @@ await check("sign with a drawn signature, kept through a tab switch", async () =
   expect(xobjects && xobjects.keys().length >= 1, "no signature image on page 1");
 });
 
+await check("merge takes a PDF secured against editing (opens without a password), and names a really locked one", async () => {
+  // lock copies of the lease with the site's own qpdf: one needs no password to open, one does
+  const [secured, locked] = await page.evaluate(async (b64) => {
+    const { qpdf } = await import(new URL("js/qpdf.js", location.href).href);
+    const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+    const out = [];
+    for (const user of ["", "open-sesame"]) {
+      const data = await qpdf(bytes, ["--encrypt", user, "owner-secret", "256", "--print=none", "--modify=none", "--"]);
+      let s = ""; for (const b of data) s += String.fromCharCode(b);
+      out.push(btoa(s));
+    }
+    return out;
+  }, (await readFile(lease)).toString("base64"));
+  const securedPath = join(fx, "secured.pdf"), lockedPath = join(fx, "locked.pdf");
+  await (await import("node:fs/promises")).writeFile(securedPath, Buffer.from(secured, "base64"));
+  await (await import("node:fs/promises")).writeFile(lockedPath, Buffer.from(locked, "base64"));
+  const { PDFDocument } = await pdfLib();
+  expect(await PDFDocument.load(Buffer.from(secured, "base64")).then(() => false, () => true), "pdf-lib opened the secured copy by itself, so this tests nothing");
+
+  await open("merge", [securedPath, second, lockedPath]);
+  await page.waitForFunction(() => document.querySelectorAll(".lineup li").length === 2 && /locked\.pdf was skipped: it's password-protected/.test(document.querySelector(".desk .status").textContent), null, { timeout: 30_000 });
+  const { data } = await save();
+  const parts = (await PDFDocument.load(await readFile(lease))).getPageCount() + (await PDFDocument.load(await readFile(second))).getPageCount();
+  const merged = await readPdf(data);
+  expect(merged.pages === parts, `merged ${merged.pages} pages, not ${parts}`);
+  expect(merged.texts[0].includes("Harbour Road"), "the secured file's text didn't come through");
+});
+
 await check("merge in a new order", async () => {
   await open("merge", [lease, second]);
   await page.click('[aria-label="Move second.pdf up"]');

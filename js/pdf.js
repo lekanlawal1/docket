@@ -19,13 +19,34 @@ export async function viewer() {
 export const readBytes = async (file) => new Uint8Array(await file.arrayBuffer());
 
 // A pdf-lib document, with a plain-words error for locked files.
+// pdf-lib is strict: it refuses files that open fine elsewhere, like ones "secured" against
+// editing (encrypted, but with no password needed to open them) or ones with a slightly broken
+// structure. Those are rebuilt with qpdf first, which copes with far more. The rebuilt bytes
+// are remembered, so a tool that opens the same file again doesn't redo it.
+const rebuilt = new WeakMap();
 export async function openForEdit(bytes) {
   const { PDFDocument } = await lib();
+  const load = (b) => PDFDocument.load(b, { updateMetadata: false });
+  if (rebuilt.has(bytes)) return load(rebuilt.get(bytes));
   try {
-    return await PDFDocument.load(bytes, { updateMetadata: false });
+    return await load(bytes);
   } catch (err) {
-    if (/encrypt/i.test(err.message)) throw new Error("This PDF is password-protected.");
-    throw err;
+    const { qpdf } = await import("./qpdf.js");
+    let fixed;
+    try {
+      // tries opening with no password; fails only if one is really needed to open it
+      fixed = await qpdf(bytes, /encrypt/i.test(err.message) ? ["--decrypt"] : []);
+    } catch (qerr) {
+      if (/encrypt/i.test(err.message) || qerr.badPassword) throw new Error("This PDF is password-protected.");
+      console.warn("pdf-lib:", err.message, "| qpdf:", qerr.message);
+      throw new Error("This PDF's structure is too damaged to read. Try Repair PDF on it first.");
+    }
+    const doc = await load(fixed).catch((again) => {
+      console.warn("pdf-lib after qpdf:", again.message);
+      throw new Error("This PDF's structure is too damaged to read. Try Repair PDF on it first.");
+    });
+    rebuilt.set(bytes, fixed);
+    return doc;
   }
 }
 
