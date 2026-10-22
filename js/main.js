@@ -62,7 +62,7 @@ function home() {
     <div class="promises">
       <span>${svg("lock", { size: 16 })}Processed on your device</span>
       <span>${svg("anchor", { size: 16 })}No account, no watermark</span>
-      <span>${svg("wave", { size: 16 })}Works offline once loaded</span>
+      <a href="#offline">${svg("wave", { size: 16 })}Works offline, and installs as an app</a>
     </div>
   </section>`);
   const suggest = hero.querySelector(".suggest");
@@ -116,7 +116,7 @@ function home() {
         <p>When a tool has to change your file in a way you might not expect, like turning pages into images, it says so before you start.</p></div>
     </div>
   </section>`);
-  app.append(hero, piers, harbour);
+  app.append(hero, piers, harbour, offlinePanel());
   if (location.hash.length > 1 && !location.hash.startsWith("#/")) document.getElementById(location.hash.slice(1))?.scrollIntoView();
 }
 
@@ -132,6 +132,64 @@ const berth = (t) => {
     <span class="what">${esc(t.what)}</span></span>`;
   return t.soon ? `<div class="berth soon" aria-disabled="true">${inner}</div>` : `<a class="berth" href="#/${t.id}">${inner}</a>`;
 };
+
+// ---------------------------------------------------------------- offline, and as an app
+// The service worker keeps the site on this device. Chrome and Edge offer to install it;
+// Safari does it from the Share menu.
+let installPrompt = null;
+addEventListener("beforeinstallprompt", (e) => { e.preventDefault(); installPrompt = e; document.querySelector(".install-btn")?.removeAttribute("hidden"); });
+const swReady = "serviceWorker" in navigator && location.protocol !== "file:"
+  ? navigator.serviceWorker.register("sw.js").then(() => navigator.serviceWorker.ready).catch((err) => { console.warn(err); return null; })
+  : Promise.resolve(null);
+// the home page is rebuilt on each visit, so one listener passes messages to whichever panel is up
+let showOffline = null;
+if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("message", (e) => showOffline?.(e.data));
+
+function offlinePanel() {
+  const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
+  const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const el = h(`<section id="offline" style="padding: 8px 0 56px">
+    <div class="offline card">
+      <div class="offline-text"><h2>Take it with you</h2>
+        <p class="off-line">Checking whether Docket is saved on this device...</p>
+        <p class="extra-line" hidden></p>
+        <p class="note">${installed ? "You're using Docket as an installed app." : apple
+          ? "On an iPhone or iPad: tap Share, then <b>Add to Home Screen</b>, and Docket opens like an app."
+          : "To install it with its own icon and window: in Chrome or Edge, use the install button here or in the address bar; on Android, choose <b>Add to Home screen</b> from the browser menu."}</p></div>
+      <div class="offline-actions">
+        <button type="button" class="pill install-btn" ${installPrompt ? "" : "hidden"}>Install Docket</button>
+        <button type="button" class="pill ghost save-all" hidden>Save every tool for offline</button>
+      </div>
+    </div></section>`);
+  const line = el.querySelector(".off-line"), extra = el.querySelector(".extra-line"), saveAll = el.querySelector(".save-all");
+  el.querySelector(".install-btn").onclick = async (e) => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === "accepted") { e.target.hidden = true; installPrompt = null; }
+  };
+  const mb = (n) => `${Math.round(n / 1e6)} MB`;
+  swReady.then((reg) => {
+    if (!reg?.active) { line.textContent = "This browser can't keep Docket for offline use. Everything still works while you're online."; return; }
+    line.textContent = "Docket is saved on this device, so it opens and works without an internet connection.";
+    const show = (m) => {
+      if (m.type === "progress") { extra.hidden = false; extra.textContent = `Saving: ${m.done} of ${m.of} parts...`; return; }
+      if (m.type === "error") { extra.textContent = "Saving stopped: " + m.message + ". Check your connection and try again."; saveAll.disabled = false; return; }
+      if (m.type !== "status") return;
+      extra.hidden = false;
+      const all = m.saved === m.of;
+      extra.textContent = all ? "Every tool is saved, including reading scans, Repair and iPhone photos."
+        : `Reading scans, Repair and iPhone photos need about ${mb(m.bytes)} more. They're saved the first time you use them, or all at once here.`;
+      saveAll.hidden = all;
+      saveAll.disabled = false;
+      saveAll.textContent = `Save every tool for offline (${mb(m.bytes)})`;
+    };
+    showOffline = show;
+    saveAll.onclick = () => { saveAll.disabled = true; saveAll.textContent = "Saving..."; reg.active.postMessage("save-extras"); };
+    reg.active.postMessage("offline-status");
+  });
+  return el;
+}
 
 // ---------------------------------------------------------------- a tool page
 async function toolPage(id) {

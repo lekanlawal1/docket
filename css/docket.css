@@ -345,3 +345,10 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .clean-found ul { padding-left: 20px; overflow-wrap: anywhere; }
 .facts { display: grid; grid-template-columns: max-content 1fr; gap: 6px 18px; margin: 0; }
 .facts dt { font-weight: 600; } .facts dd { margin: 0; overflow-wrap: anywhere; }
+.promises a { display: inline-flex; align-items: center; gap: 8px; color: inherit; text-decoration: underline; text-decoration-color: var(--card-line); text-underline-offset: 3px; }
+.offline { display: flex; flex-wrap: wrap; gap: 18px 32px; align-items: center; justify-content: space-between; padding: 28px 32px; border-radius: 20px; background: var(--card); border: 1px solid var(--card-line); }
+.offline-text { flex: 1 1 380px; }
+.offline-text h2 { margin: 0 0 8px; }
+.offline-text p { margin: 6px 0; }
+.offline-actions { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
+@media (max-width: 640px) { .offline { padding: 22px; } .offline-actions { width: 100%; } }
