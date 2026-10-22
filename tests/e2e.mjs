@@ -146,6 +146,36 @@ await check("remove blank pages: empty, page-number-only and speckled scans go; 
   expect(out.texts[0].includes("page one") && out.texts[1].trim() === "3" && out.texts[2].includes("page four") && out.texts[3].includes("page six"), "wrong pages kept: " + out.texts.map((t) => t.slice(0, 20)).join(" | "));
 });
 
+await check("pages per sheet: 4 on one sheet, all upright (one was rotated); 2 per sheet goes sideways", async () => {
+  await open("n-up", [lease]);
+  let { data } = await save();
+  const sheetInfo = (b64) => page.evaluate(async (b64) => {
+    const { openForView } = await import(new URL("js/pdf.js", location.href).href);
+    const { Util } = await import(new URL("vendor/pdfjs/pdf.min.mjs", location.href).href);
+    const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const out = [];
+    for (let n = 1; n <= doc.numPages; n++) {
+      const pg = await doc.getPage(n), vp = pg.getViewport({ scale: 1 });
+      const items = (await pg.getTextContent()).items.filter((i) => i.str.startsWith("Page "));
+      out.push({ w: vp.width, h: vp.height, heads: items.map((i) => { const m = Util.transform(vp.transform, i.transform); return { s: i.str, dir: [Math.sign(Math.round(m[0])), Math.sign(Math.round(m[1]))].join(","), x: m[4], y: m[5] }; }) });
+    }
+    return out;
+  }, b64);
+  let sheets = await sheetInfo(data.toString("base64"));
+  expect(sheets.length === 1 && sheets[0].heads.length === 4, "4-up should make 1 sheet with 4 pages: " + JSON.stringify(sheets.map((s) => s.heads.length)));
+  // every page should face the way it does in a viewer: pages 1-3 read across, page 4 (turned
+  // a quarter) reads downwards, exactly as in the original
+  const original = (await sheetInfo((await readFile(lease)).toString("base64"))).map((p) => p.heads[0].dir);
+  const now = Object.fromEntries(sheets[0].heads.map((h) => [h.s, h.dir]));
+  expect(["Page 1", "Page 2", "Page 3", "Page 4"].every((k, i) => now[k] === original[i]), `directions ${JSON.stringify(now)} vs original ${original}`);
+  const at = Object.fromEntries(sheets[0].heads.map((h) => [h.s, h]));
+  expect(at["Page 1"].x < at["Page 2"].x && at["Page 1"].y < at["Page 3"].y, "pages aren't in reading order");
+  await page.selectOption("[name=per]", "2");
+  ({ data } = await save());
+  sheets = await sheetInfo(data.toString("base64"));
+  expect(sheets.length === 2 && sheets.every((s) => s.w > s.h), "2-up should make 2 landscape sheets");
+});
+
 await check("pdf to jpg", async () => {
   await open("pdf-to-jpg", [lease]);
   await page.fill("[name=pages]", "1");
