@@ -9,7 +9,8 @@ const isHeic = (file) => /heic|heif/i.test(file.type) || /\.(heic|heif)$/i.test(
 // iPhone photos (HEIC) only open natively in Safari. Elsewhere they go through libheif, about
 // 3 MB, which is only fetched when one turns up.
 export async function openImage(file) {
-  const bitmap = await createImageBitmap(file).catch(() => null);
+  let readError = null;
+  const bitmap = await createImageBitmap(file).catch((err) => { readError = err; return null; });
   if (bitmap) return bitmap;
   if (isHeic(file)) {
     try {
@@ -19,6 +20,10 @@ export async function openImage(file) {
       console.error(err);
       throw new Error(`${file.name} couldn't be read. It may be damaged, or a kind of HEIC this can't open; try exporting it as JPG.`);
     }
+  }
+  if (/NotReadable|NotFound|Security/.test(readError?.name || "")) {
+    const { unreadable } = await import("./pdf.js");
+    throw unreadable(file, readError);
   }
   throw new Error(`${file.name} can't be opened by this browser.`);
 }

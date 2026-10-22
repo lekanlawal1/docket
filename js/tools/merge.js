@@ -26,7 +26,7 @@ export function mount({ main, desk, files, privateNote }) {
         list.push({ file, raw, pages: doc.getPageCount() });
       } catch (err) {
         console.warn(file.name, err);
-        status(out, `${file.name} was skipped: ${err.message.replace(/^This PDF's/, "its").replace(/^This PDF is/, "it's")}`, "bad");
+        status(out, /couldn't be read from your disk/.test(err.message) ? err.message : `${file.name} was skipped: ${err.message.replace(/^This PDF's/, "its").replace(/^This PDF is/, "it's")}`, "bad");
       }
     }
     draw();

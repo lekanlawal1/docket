@@ -976,6 +976,20 @@ await check("merge takes a PDF secured against editing (opens without a password
   expect(merged.texts[0].includes("Harbour Road"), "the secured file's text didn't come through");
 });
 
+await check("a file that can't be read from the disk any more gets a plain explanation", async () => {
+  await open("merge");
+  // what Chrome does when a chosen file was overwritten, moved or is still syncing
+  await page.evaluate(() => {
+    const real = Blob.prototype.arrayBuffer;
+    File.prototype.arrayBuffer = function () { return this.name === "gone.pdf" ? Promise.reject(new DOMException("The requested file could not be read", "NotReadableError")) : real.call(this); };
+  });
+  const gone = join(fx, "gone.pdf");
+  await (await import("node:fs/promises")).copyFile(lease, gone);
+  await page.locator(".main .dock input").first().setInputFiles([gone, second]);
+  await page.waitForFunction(() => /gone\.pdf couldn't be read from your disk.*Choose it again/.test(document.querySelector(".desk .status").textContent), null, { timeout: 10_000 });
+  await page.waitForSelector(".lineup li", { timeout: 10_000 });   // the readable one is still added
+});
+
 await check("merge in a new order", async () => {
   await open("merge", [lease, second]);
   await page.click('[aria-label="Move second.pdf up"]');
