@@ -25,6 +25,25 @@ export function reader(onProgress, langs = "eng") {
   return starting.get(langs);
 }
 
+// Reads `canvas`, and if it reads as nonsense (scanned sideways or upside down), tries the other
+// ways round and keeps the best. Text read the wrong way comes out as lots of one-character
+// "words" at middling confidence, so only confident, word-like results count.
+export async function readAnyWayUp(worker, canvas) {
+  const read = async (turn) => {
+    const { data } = await worker.recognize(turn ? turned(canvas, turn) : canvas);
+    const found = data.words.filter((w) => w.text.trim() && w.confidence > 20);
+    const score = found.filter((w) => w.confidence >= 75 && /\p{L}{3}|\d{2}/u.test(w.text)).length;
+    return { data, found, turn, score };
+  };
+  let best = await read(0);
+  for (const turn of [90, 270, 180]) {
+    if (best.score >= 10 && best.data.confidence >= 70) break;
+    const attempt = await read(turn);
+    if (attempt.score > best.score) best = attempt;
+  }
+  return best;
+}
+
 // Draws page `number` (1-based) sharp enough to read, about 300 dpi, capped so a huge page
 // doesn't run a phone out of memory.
 export async function pageForReading(viewDoc, number) {

@@ -587,6 +587,22 @@ await check("scan: no page in the photo says so, and dragging the corners sets t
   expect((c[0] > c[1]) === (size.width > size.height), "the turned page didn't keep its turn");
 });
 
+await check("photo to text: an angled photo of a page is straightened and read; a screenshot is read as it is", async () => {
+  const corners = cameraCorners({ tiltX: -18, tiltY: 16, spin: -5, distance: 1.35, focal: 1500, W: 1500, H: 2000 });
+  await open("photo-to-text", [await photographed(corners, "handout.jpg"), png]);
+  await page.click(".desk .go");
+  await page.waitForSelector(".ocr-result:not([hidden])", { timeout: 180_000 });
+  const text = await page.inputValue(".ocr-result textarea");
+  for (const w of ["Harbour Road", "1,450", "landlord@example.com", "[handout.jpg]", "[harbour.png]", "Docket"]) expect(text.includes(w), `"${w}" missing from: ${text.slice(0, 300)}`);
+  const notes = await page.$$eval(".lineup small", (els) => els.map((e) => e.textContent));
+  expect(/page straightened/.test(notes[0]), "the photo wasn't straightened: " + notes[0]);
+  expect(!/straightened/.test(notes[1]), "the screenshot was 'straightened': " + notes[1]);
+  // what's typed in the box is what gets saved
+  await page.fill(".ocr-result textarea", text + "\nchecked by hand");
+  const { name, data } = await save(".ocr-result .save");
+  expect(name === "text-from-photos.txt" && data.toString("utf8").endsWith("checked by hand"), "saved " + name);
+});
+
 await check("make searchable reads French, accents and all", async () => {
   const scan = await page.evaluate(async (b64) => {
     const { rasterize } = await import(new URL("js/pdf.js", location.href).href);

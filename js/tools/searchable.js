@@ -1,17 +1,8 @@
 import { onePdf, download, renamed, plural, busy, status } from "../ui.js";
 import { readBytes, openForEdit, openForView, pageTexts } from "../pdf.js";
-import { reader, pageForReading, addTextLayer, turned } from "../ocr.js";
+import { reader, pageForReading, addTextLayer, readAnyWayUp } from "../ocr.js";
 
 export const intro = "Scanned pages are just pictures of text. This reads them and adds the words behind each page, so you can search, select and copy, while the page looks exactly the same.";
-
-async function read(worker, canvas, turn) {
-  const { data } = await worker.recognize(canvas);
-  const found = data.words.filter((w) => w.text.trim() && w.confidence > 20);
-  // text read the wrong way round comes out as lots of one-character "words" at middling
-  // confidence, so count only confident, word-like results
-  const score = found.filter((w) => w.confidence >= 75 && /\p{L}{3}|\d{2}/u.test(w.text)).length;
-  return { data, found, turn, score };
-}
 
 export function mount({ main, desk, files, privateNote }) {
   desk.innerHTML = `<h2>Read the scan</h2><p>Load a PDF to begin.</p>`;
@@ -51,13 +42,7 @@ export function mount({ main, desk, files, privateNote }) {
       for (const i of scanned) {
         pageAt++;
         const { canvas, viewport } = await pageForReading(view, i + 1);
-        let best = await read(worker, canvas, 0);
-        // a page scanned sideways or upside down reads as nonsense, so try the other ways round
-        for (const turn of [90, 270, 180]) {
-          if (best.score >= 10 && best.data.confidence >= 70) break;
-          const attempt = await read(worker, turned(canvas, turn), turn);
-          if (attempt.score > best.score) best = attempt;
-        }
+        const best = await readAnyWayUp(worker, canvas);
         const { data, found } = best;
         words += await addTextLayer(doc, doc.getPage(i), found, viewport, best.turn);
         confidence += data.confidence;
