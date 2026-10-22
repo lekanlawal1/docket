@@ -334,3 +334,7 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .lineup li.on { outline: 2px solid var(--focus); }
 .pill.small { padding: 6px 12px; font-size: 13px; }
 .scan-editor + .lineup .info, .scan-editor + .lineup img { cursor: pointer; }
+.ocr-result { margin-top: 18px; }
+.ocr-result textarea { width: 100%; min-height: 320px; line-height: 1.5; }
+.row-btns { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.camera-btn svg.art { stroke: currentColor; flex: none; }

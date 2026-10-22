@@ -13,7 +13,7 @@ const SIZES = { fit: null, letter: [612, 792], a4: [595.28, 841.89] };
 const INSET = [[0.06, 0.06], [0.94, 0.06], [0.94, 0.94], [0.06, 0.94]];
 
 // The picture's pixels, at most `max` on its longer side.
-function pixels(bitmap, max) {
+export function pixels(bitmap, max) {
   const k = Math.min(1, max / Math.max(bitmap.width, bitmap.height));
   const w = Math.max(1, Math.round(bitmap.width * k)), hgt = Math.max(1, Math.round(bitmap.height * k));
   const ctx = Object.assign(document.createElement("canvas"), { width: w, height: hgt }).getContext("2d", { willReadFrequently: true });
@@ -22,7 +22,7 @@ function pixels(bitmap, max) {
 }
 
 // One page: the photo's corners straightened at `max` pixels, given the look, turned `rot` degrees.
-function flatten(page, look, max) {
+export function flatten(page, look, max) {
   const src = pixels(page.bitmap, Math.max(max * 1.25, 1200));
   const px = page.quad.map(([x, y]) => [x * src.width, y * src.height]);
   const [w, hgt] = outputSize(px, max, [src.width, src.height]);
