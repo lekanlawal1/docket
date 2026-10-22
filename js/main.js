@@ -25,7 +25,8 @@ export const takeWaiting = () => { const f = waiting; waiting = []; return f; };
 function suggestions(files) {
   const pdfs = files.filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)).length;
   const images = files.filter((f) => /^image\//.test(f.type) || /\.(heic|heif)$/i.test(f.name)).length;
-  if (pdfs > 1) return ["merge", "compress", "pdf-to-jpg"];
+  if (pdfs === 2) return ["compare", "merge", "compress"];
+  if (pdfs > 2) return ["merge", "compress", "pdf-to-jpg"];
   if (pdfs === 1) return ["organise", "split", "sign", "redact", "compress", "summary"];
   if (images) return ["images-to-pdf", "resize-image", "compress-image"];
   return [];

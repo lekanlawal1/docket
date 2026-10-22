@@ -26,6 +26,20 @@ export async function makeFixtures(dir) {
   doc.getPage(3).setRotation(degrees(90));
   writeFileSync(join(dir, "lease.pdf"), await doc.save());
 
+  // a second version of the lease: on page 2 the rent goes up, the late fee sentence is gone,
+  // and an insurance sentence is new; page 3 is the same words wrapped onto different lines
+  const v2 = await PDFDocument.create();
+  const f2 = await v2.embedFont(StandardFonts.Helvetica);
+  for (let p = 0; p < 4; p++) {
+    const page = v2.addPage([612, 792]);
+    page.drawText(`Page ${p + 1}`, { x: 50, y: 740, size: 18, font: f2 });
+    let text = lines;
+    if (p === 1) text = [lines[0], lines[1].replace("$1,450", "$1,550"), lines[3], lines[4], "The tenant must keep contents insurance for the whole term."];
+    if (p === 2) text = lines.join(" ").match(/.{1,70}(\s|$)/g).map((s) => s.trim());
+    text.forEach((t, i) => page.drawText(t, { x: 50, y: 700 - i * 22, size: 11, font: f2 }));
+  }
+  writeFileSync(join(dir, "lease-v2.pdf"), await v2.save());
+
   // a page in French, for reading scans in another language
   const fr = await PDFDocument.create();
   const frFont = await fr.embedFont(StandardFonts.Helvetica);
