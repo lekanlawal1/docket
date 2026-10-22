@@ -160,6 +160,63 @@ await check("sign (typed, placed on page 1)", async () => {
   expect((await readPdf((await save()).data)).pages === 4, "wrong page count");
 });
 
+await check("add text and marks: in the right place, upright on a rotated page", async () => {
+  // a window tall enough to show a whole page, so every click lands on it without scrolling
+  await page.setViewportSize({ width: 1280, height: 1500 });
+  await open("annotate", [lease]);
+  await page.waitForSelector(".stage canvas");
+  const box = async () => page.locator(".stage canvas").boundingBox();
+  let r = await box();
+  // text near the bottom-left of page 1, two lines
+  await page.mouse.click(r.x + r.width * 0.2, r.y + r.height * 0.8);
+  await page.keyboard.type("Approved by Sam Rowe");
+  await page.keyboard.press("Enter");
+  await page.keyboard.type("October 22");
+  const typedAt = await page.locator(".mark.text .words").boundingBox();
+  // a highlight over the first lease line, and a tick
+  await page.click("[data-tool=highlight]");
+  await page.mouse.move(r.x + r.width * 0.07, r.y + r.height * 0.105);
+  await page.mouse.down(); await page.mouse.move(r.x + r.width * 0.92, r.y + r.height * 0.125, { steps: 5 }); await page.mouse.up();
+  await page.click("[data-tool=check]");
+  await page.mouse.click(r.x + r.width * 0.7, r.y + r.height * 0.8);
+  // page 4 is turned a quarter: text typed there must still read upright
+  for (let i = 0; i < 3; i++) await page.click('[aria-label="Next page"]');
+  await page.waitForFunction(() => document.querySelector(".pager span").textContent.startsWith("Page 4"));
+  await page.click("[data-tool=text]");
+  r = await box();
+  await page.mouse.click(r.x + r.width * 0.3, r.y + r.height * 0.5);
+  await page.keyboard.type("Sideways page note");
+  expect(await page.locator(".mark").count() === 1, "page 4 should show only its own mark");
+
+  const { data } = await save();
+  await goodStatus();
+  const result = await page.evaluate(async ([b64, at, stageW]) => {
+    const { openForView, drawPage } = await import(new URL("js/pdf.js", location.href).href);
+    const { Util } = await import(new URL("vendor/pdfjs/pdf.min.mjs", location.href).href);
+    const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const items = async (n) => { const pg = await doc.getPage(n); const vp = pg.getViewport({ scale: 1 });
+      return (await pg.getTextContent()).items.map((it) => ({ str: it.str, m: Util.transform(vp.transform, it.transform), vw: vp.width })); };
+    const p1 = await items(1), p4 = await items(4);
+    const { canvas } = await drawPage(doc, 1, { width: 612 });
+    const px = (fx, fy) => [...canvas.getContext("2d").getImageData(Math.round(fx * canvas.width), Math.round(fy * canvas.height), 1, 1).data];
+    return { p1, p4, highlight: px(0.86, 0.115), plain: px(0.86, 0.2), tick: px(0.7, 0.8) };
+  }, [data.toString("base64")]);
+  const approved = result.p1.find((i) => i.str.includes("Approved by Sam Rowe"));
+  expect(approved, "typed text missing from page 1");
+  expect(result.p1.some((i) => i.str.includes("October 22")), "second line missing");
+  // where it was typed, in page points: the box's left edge and first baseline
+  const stage = await box();
+  const scale = approved.vw / stage.width;
+  const wantX = (typedAt.x - stage.x) * scale, wantY = (typedAt.y - stage.y) * scale + 12 * 0.95;
+  expect(Math.abs(approved.m[4] - wantX) < 3 && Math.abs(approved.m[5] - wantY) < 3, `text landed at ${approved.m[4].toFixed(1)},${approved.m[5].toFixed(1)}, typed at ${wantX.toFixed(1)},${wantY.toFixed(1)}`);
+  const side = result.p4.find((i) => i.str.includes("Sideways page note"));
+  expect(side && side.m[0] > 0 && Math.abs(side.m[1]) < 0.01, "text on the rotated page doesn't read upright");
+  const [hr, hg, hb] = result.highlight;
+  expect(hr > 200 && hg > 180 && hb < 200, "no yellow highlight: " + result.highlight);
+  expect(result.plain.slice(0, 3).every((c) => c > 245), "page should be white outside the highlight");
+  await page.setViewportSize({ width: 1280, height: 900 });
+});
+
 await check("fill form", async () => {
   await open("fill-form", [form]);
   await page.fill("#f0", "Sam Rowe");
