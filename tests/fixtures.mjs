@@ -40,6 +40,21 @@ export async function makeFixtures(dir) {
   }
   writeFileSync(join(dir, "lease-v2.pdf"), await v2.save());
 
+  // blank pages to find: an empty page, one with only a page number, and a "scanned" blank
+  // (pale grey with a few specks), between pages that have content
+  const blanks = await PDFDocument.create();
+  const bf = await blanks.embedFont(StandardFonts.Helvetica);
+  const content = (t) => { const pg = blanks.addPage([612, 792]); pg.drawText(t, { x: 60, y: 700, size: 14, font: bf }); pg.drawText("Some more words on the page to make it real.", { x: 60, y: 670, size: 11, font: bf }); };
+  content("Report, page one");
+  blanks.addPage([612, 792]);
+  blanks.addPage([612, 792]).drawText("3", { x: 300, y: 40, size: 10, font: bf });
+  content("Report, page four");
+  const grey = blanks.addPage([612, 792]);
+  grey.drawRectangle({ x: 0, y: 0, width: 612, height: 792, color: rgb(0.93, 0.93, 0.92) });
+  for (const [x, y] of [[100, 200], [400, 600], [250, 450]]) grey.drawCircle({ x, y, size: 1.2, color: rgb(0.3, 0.3, 0.3) });
+  content("Report, page six");
+  writeFileSync(join(dir, "blanks.pdf"), await blanks.save());
+
   // a page in French, for reading scans in another language
   const fr = await PDFDocument.create();
   const frFont = await fr.embedFont(StandardFonts.Helvetica);

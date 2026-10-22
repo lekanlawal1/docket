@@ -7,6 +7,7 @@ export const PIERS = [
     { id: "split", name: "Split", icon: "crab", what: "Break a PDF apart by page ranges or every few pages." },
     { id: "organise", name: "Organise pages", icon: "wheel", what: "Reorder, rotate and delete pages." },
     { id: "extract", name: "Extract pages", icon: "hook", what: "Pull the pages you need into a new file." },
+    { id: "blank-pages", name: "Remove blank pages", icon: "swab", what: "Find the empty pages and take them out." },
   ] },
   { no: "02", name: "Convert", blurb: "Change the format", tint: "--tint-2", tools: [
     { id: "pdf-to-jpg", name: "PDF to JPG", icon: "porthole", what: "Every page as an image, at the size you pick." },

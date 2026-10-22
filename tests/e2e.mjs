@@ -22,7 +22,7 @@ const base = process.env.BASE || `http://localhost:${server.address().port}/`;
 
 const fx = await mkdtemp(join(tmpdir(), "docket-"));
 await makeFixtures(fx);
-const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf"), leaseV2 = join(fx, "lease-v2.pdf");
+const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf"), leaseV2 = join(fx, "lease-v2.pdf"), blanksPdf = join(fx, "blanks.pdf");
 
 const browser = await chromium.launch({
   ...(process.env.CHROME && { executablePath: process.env.CHROME }),
@@ -132,6 +132,18 @@ await check("organise", async () => {
   await open("organise", [lease]);
   await page.waitForSelector(".page-card");
   expect((await readPdf((await save()).data)).pages === 4, "wrong page count");
+});
+
+await check("remove blank pages: empty, page-number-only and speckled scans go; content stays", async () => {
+  await open("blank-pages", [blanksPdf]);
+  await page.waitForFunction(() => /ticked to remove/.test(document.querySelector(".summary-line")?.textContent || ""));
+  const ticked = await page.$$eval(".page-card input", (els) => els.map((e) => e.checked));
+  expect(JSON.stringify(ticked) === "[false,true,true,false,true,false]", "ticked: " + ticked);
+  // change of mind: keep page 3 (the page-number one)
+  await page.locator(".page-card").nth(2).locator("input").uncheck();
+  const out = await readPdf((await save()).data);
+  expect(out.pages === 4, "expected 4 pages left, got " + out.pages);
+  expect(out.texts[0].includes("page one") && out.texts[1].trim() === "3" && out.texts[2].includes("page four") && out.texts[3].includes("page six"), "wrong pages kept: " + out.texts.map((t) => t.slice(0, 20)).join(" | "));
 });
 
 await check("pdf to jpg", async () => {
