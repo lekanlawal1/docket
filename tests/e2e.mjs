@@ -22,7 +22,7 @@ const base = process.env.BASE || `http://localhost:${server.address().port}/`;
 
 const fx = await mkdtemp(join(tmpdir(), "docket-"));
 await makeFixtures(fx);
-const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf"), leaseV2 = join(fx, "lease-v2.pdf"), blanksPdf = join(fx, "blanks.pdf");
+const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf"), leaseV2 = join(fx, "lease-v2.pdf"), blanksPdf = join(fx, "blanks.pdf"), damaged = join(fx, "damaged.pdf");
 
 const browser = await chromium.launch({
   ...(process.env.CHROME && { executablePath: process.env.CHROME }),
@@ -342,6 +342,32 @@ await check("compress shrinks the pictures and keeps the text", async () => {
   const { PDFDocument, PDFName, PDFDict } = await pdfLib();
   const xo = (await PDFDocument.load(data)).getPage(0).node.Resources().lookup(PDFName.of("XObject"), PDFDict);
   expect(xo && xo.keys().length === 1, "picture missing");
+});
+
+await check("repair a damaged PDF: rebuilt, every page readable, text intact", async () => {
+  await open("repair", [damaged]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  const { data } = await save();
+  await goodStatus();
+  const msg = await page.locator(".desk .status").innerText();
+  expect(/rebuilt, and 4 pages of 4 can be read/.test(msg), "status: " + msg);
+  const out = await readPdf(data);
+  expect(out.pages === 4 && out.texts[1].includes("Harbour Road"), "repaired file is wrong");
+  // and it's now a well-formed file: its index points where it should
+  const tail = data.toString("latin1").slice(-60);
+  expect(!/999999/.test(tail), "the broken index pointer is still there");
+});
+
+await check("repair a file cut short (an interrupted download): what survived comes back, and it says what didn't", async () => {
+  await open("repair", [join(fx, "cut-short.pdf")]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  const { data } = await save();
+  const msg = await page.locator(".desk .status").innerText();
+  expect(/rebuilt, and 4 pages of 4 can be read/.test(msg), "status: " + msg);
+  const out = await readPdf(data);
+  // page 4's contents were in the part that was cut off, so it comes back blank, and it says so
+  expect(out.pages === 4 && out.texts.slice(0, 3).every((t) => t.includes("Harbour Road")), "pages 1-3 should be intact");
+  expect(/1 page came back empty/.test(msg), "should say page 4 came back empty: " + msg);
 });
 
 await check("grayscale", async () => {

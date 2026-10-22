@@ -40,6 +40,15 @@ export async function makeFixtures(dir) {
   }
   writeFileSync(join(dir, "lease-v2.pdf"), await v2.save());
 
+  // a damaged copy of the lease: the pointer to its index is wrong and the index is mangled,
+  // like a file saved badly or cut short
+  const good = await doc.save({ useObjectStreams: false });
+  let text = Buffer.from(good).toString("latin1");
+  text = text.replace(/startxref\s+\d+/, "startxref\n999999").replace(/xref\n0 \d+/, "xref\n0 3");
+  writeFileSync(join(dir, "damaged.pdf"), Buffer.from(text, "latin1"));
+  // and one cut short, like an interrupted download
+  writeFileSync(join(dir, "cut-short.pdf"), good.slice(0, Math.floor(good.length * 0.93)));
+
   // blank pages to find: an empty page, one with only a page number, and a "scanned" blank
   // (pale grey with a few specks), between pages that have content
   const blanks = await PDFDocument.create();
