@@ -25,6 +25,7 @@ export const PIERS = [
     { id: "annotate", name: "Add text and marks", icon: "quill", what: "Type on any PDF, highlight, white out, tick boxes." },
     { id: "sign", name: "Sign", icon: "anchor", what: "Draw or type a signature and place it on the page." },
     { id: "fill-form", name: "Fill a form", icon: "lifebuoy", what: "Type into a PDF's form fields and save." },
+    { id: "flatten", name: "Flatten", icon: "iron", what: "Lock form answers and comments into the page." },
     { id: "page-numbers", name: "Page numbers", icon: "compass", what: "Add numbers where you want them." },
     { id: "watermark", name: "Watermark", icon: "wave", what: "Stamp text across every page." },
   ] },

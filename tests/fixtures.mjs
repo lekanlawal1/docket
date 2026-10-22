@@ -1,5 +1,5 @@
 // Builds the PDFs and picture the browser tests use, so no binary files live in the repo.
-import { PDFDocument, StandardFonts, rgb, degrees } from "../vendor/pdf-lib/pdf-lib.esm.min.js";
+import { PDFDocument, PDFName, PDFString, StandardFonts, rgb, degrees } from "../vendor/pdf-lib/pdf-lib.esm.min.js";
 import { writeFileSync, mkdirSync } from "node:fs";
 import { join } from "node:path";
 
@@ -106,6 +106,43 @@ export async function makeFixtures(dir) {
   dd.addOptions(["Ontario", "Quebec"]);
   dd.addToPage(fp, { x: 50, y: 600, width: 150, height: 24 });
   writeFileSync(join(dir, "form.pdf"), await form.save());
+
+  // a reviewed document: a filled field, and the marks PDF apps leave behind, each with its
+  // own stored look (one without the usual XObject labels, one scaled by its own matrix)
+  const marked = await PDFDocument.create();
+  const helv = await marked.embedFont(StandardFonts.Helvetica);
+  const ctx = marked.context;
+  const look = (content, BBox, extra = {}) => ctx.register(ctx.stream(content, { BBox, ...extra }));
+  const annot = (page, dict) => {
+    const ref = ctx.register(ctx.obj({ Type: "Annot", ...dict }));
+    const list = page.node.Annots();
+    if (list) list.push(ref); else page.node.set(PDFName.of("Annots"), ctx.obj([ref]));
+    return ref;
+  };
+  const m1 = marked.addPage([612, 792]);
+  m1.drawText("Quarterly figures, for review", { x: 60, y: 740, size: 16, font: helv });
+  const reviewer = marked.getForm().createTextField("reviewer");
+  reviewer.setText("Ada Moss");
+  reviewer.addToPage(m1, { x: 60, y: 640, width: 200, height: 24, font: helv });
+  annot(m1, { Subtype: "Square", Rect: [60, 500, 160, 560], AP: { N: look("1 0 0 rg 0 0 100 60 re f", [0, 0, 100, 60]) } });
+  annot(m1, { Subtype: "Stamp", Rect: [300, 400, 500, 480], AP: { N: look("0 0.6 0 rg 0 0 100 40 re f", [0, 0, 100, 40], { Type: "XObject", Subtype: "Form", Matrix: [0.5, 0, 0, 0.5, 0, 0] }) } });
+  annot(m1, { Subtype: "FreeText", Rect: [60, 300, 260, 320], DA: PDFString.of("/Helv 12 Tf 0 g"),
+    AP: { N: look("BT /Helv 12 Tf 0 g 2 5 Td (APPROVED BY REVIEW) Tj ET", [0, 0, 200, 20], { Resources: { Font: { Helv: helv.ref } } }) } });
+  annot(m1, { Subtype: "Square", F: 2, Rect: [400, 600, 450, 650], AP: { N: look("0 0 1 rg 0 0 50 50 re f", [0, 0, 50, 50]) } });
+  annot(m1, { Subtype: "Popup", Rect: [420, 300, 560, 360] });
+  annot(m1, { Subtype: "Link", Rect: [60, 200, 200, 220], Border: [0, 0, 0], A: { S: "URI", URI: PDFString.of("https://example.com/terms") } });
+  const m2 = marked.addPage([612, 792]);
+  m2.setRotation(degrees(90));
+  annot(m2, { Subtype: "Square", Rect: [100, 100, 200, 200], AP: { N: look("0.5 0 0.5 rg 0 0 100 100 re f", [0, 0, 100, 100]) } });
+  writeFileSync(join(dir, "marked.pdf"), await marked.save());
+
+  // a highlight saved without its look, as some apps do: only a drawing of the page keeps it
+  const bare = await PDFDocument.create();
+  const b1 = bare.addPage([612, 792]);
+  b1.drawText("Highlighted line", { x: 60, y: 704, size: 14, font: await bare.embedFont(StandardFonts.Helvetica) });
+  const href = bare.context.register(bare.context.obj({ Type: "Annot", Subtype: "Highlight", Rect: [56, 698, 220, 722], C: [1, 0.9, 0], QuadPoints: [56, 722, 220, 722, 56, 698, 220, 698] }));
+  b1.node.set(PDFName.of("Annots"), bare.context.obj([href]));
+  writeFileSync(join(dir, "bare-highlight.pdf"), await bare.save());
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) await makeFixtures(process.argv[2] || "tests/.fixtures");
