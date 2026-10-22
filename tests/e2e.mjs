@@ -316,7 +316,7 @@ await check("flatten: answers and marks become part of the page, hidden ones sta
   const doc = await PDFDocument.load(data);
   expect(!doc.getForm().getFields().length, "form fields left");
   const left = doc.getPages().flatMap((p) => { const a = p.node.Annots(); return a ? a.asArray().map((r) => doc.context.lookup(r).get(PDFName.of("Subtype")).asString()) : []; });
-  expect(left.join() === "/Link", "annotations left: " + left.join());
+  expect(left.join() === "/Link,/Link", "annotations left: " + left.join());
   const { texts } = await readPdf(data);
   expect(texts[0].includes("Ada Moss") && texts[0].includes("APPROVED BY REVIEW"), "answer or comment text not on the page: " + texts[0]);
   const [red, green, hidden] = await colourAt(data, 1, [[110, 530], [400, 440], [425, 625]]);
@@ -325,6 +325,34 @@ await check("flatten: answers and marks become part of the page, hidden ones sta
   expect(hidden[2] < 200 || hidden[0] > 200, "the hidden mark showed up: " + hidden);
   const [purple] = await colourAt(data, 2, [[150, 150]]);
   expect(purple[0] > 90 && purple[2] > 90 && purple[1] < 60, "the mark on the turned page is missing: " + purple);
+});
+
+// where each link sits on the page as it's shown, in fractions of the page
+const linkSpots = (data) => page.evaluate(async (b64) => {
+  const { openForView } = await import(new URL("js/pdf.js", location.href).href);
+  const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+  const spots = [];
+  for (let n = 1; n <= doc.numPages; n++) {
+    const pg = await doc.getPage(n), vp = pg.getViewport({ scale: 1 });
+    for (const a of await pg.getAnnotations()) if (a.subtype === "Link") {
+      const [x0, y0, x1, y1] = vp.convertToViewportRectangle(a.rect);
+      spots.push({ n, url: a.url, box: [Math.min(x0, x1) / vp.width, Math.min(y0, y1) / vp.height, Math.max(x0, x1) / vp.width, Math.max(y0, y1) / vp.height] });
+    }
+  }
+  return spots;
+}, data.toString("base64"));
+
+await check("flatten into pictures keeps links clickable, in the same place, on a turned page too", async () => {
+  await open("flatten", [marked]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  await page.check("[name=pictures]");
+  const { data } = await save();
+  const was = await linkSpots(await readFile(marked)), now = await linkSpots(data);
+  expect(was.length === 2 && now.length === 2, `links: ${was.length} before, ${now.length} after`);
+  now.forEach((l, i) => {
+    expect(l.url === was[i].url && l.n === was[i].n, `link ${i} is ${l.url} on page ${l.n}`);
+    expect(l.box.every((v, k) => Math.abs(v - was[i].box[k]) < 0.002), `link ${i} moved: ${was[i].box} → ${l.box}`);
+  });
 });
 
 await check("flatten: a highlight saved without its look is kept by drawing the page", async () => {
@@ -359,12 +387,57 @@ await check("redact by search, and the text is really gone", async () => {
   expect(out.pages === 4, "page count changed");
 });
 
-await check("metadata is shown and removed", async () => {
+await check("clean for sharing: the author is shown and removed", async () => {
   await open("metadata", [lease]);
   await page.waitForSelector("text=Jordan Secret-Author");
   const { data } = await save();
   expect(!data.toString("latin1").includes("Secret-Author"), "author still in the file");
   await goodStatus();
+});
+
+// every object in a PDF as text, streams decompressed, so a check can't miss something tucked away
+const everything = async (data) => {
+  const { PDFDocument, PDFRawStream, decodePDFRawStream } = await pdfLib();
+  const doc = await PDFDocument.load(data, { updateMetadata: false });
+  return doc.context.enumerateIndirectObjects().map(([, o]) => {
+    let s = o.toString();
+    if (o instanceof PDFRawStream) { try { s += Buffer.from(decodePDFRawStream(o).decode()).toString("latin1"); } catch { /* images */ } }
+    return s;
+  }).join("\n").replace(/<([0-9A-Fa-f\s]+)>/g, (m, hex) => {
+    // text stored as hex (pdf-lib writes titles and authors that way): read it as well
+    const b = Buffer.from(hex.replace(/\s/g, ""), "hex");
+    return m + (b[0] === 0xfe && b[1] === 0xff ? Buffer.from(b.subarray(2)).swap16().toString("utf16le") : b.toString("latin1"));
+  }) + data.toString("latin1");
+};
+
+await check("clean for sharing: comments, attachments, scripts, hidden layers and old versions are found, then really gone", async () => {
+  const messy = join(fx, "messy.pdf");
+  const before = await everything(await readFile(messy));
+  for (const w of ["Hidden-Author", "offer them less", "salary", "app.alert", "Old draft title", "SALARY BAND"]) expect(before.includes(w), `the fixture lacks "${w}"`);
+  await open("metadata", [messy]);
+  await page.waitForSelector(".clean-found");
+  const listed = await page.locator(".clean-found").innerText();
+  for (const w of ["Final offer", "Reviewer note: offer them less", "salary-sheet.csv", "3 scripts", "1 hidden layer", "Internal notes", "1 earlier saved version", "1 link to a website"]) expect(listed.includes(w), `"${w}" not listed in: ${listed}`);
+  expect(await page.isChecked("[name=pictures]") && !(await page.isChecked("[name=links]")), "wrong switches on by default");
+  const { name, data } = await save();
+  expect(name === "messy-clean.pdf", "named " + name);
+  const after = await everything(data);
+  for (const w of ["Hidden-Author", "Final offer", "offer them less", "salary", "app.alert", "Old draft title", "SALARY BAND", "Internal notes", "pdf-lib"]) expect(!after.includes(w), `"${w}" is still in the file`);
+  expect(after.includes("example.com/offer"), "the web link was removed though it was left switched on");
+  const { texts } = await readPdf(data);
+  expect(texts[0] === "", "pages weren't turned into pictures");
+  await goodStatus();
+});
+
+await check("clean for sharing without the pictures: text stays selectable, links can go too", async () => {
+  await open("metadata", [join(fx, "messy.pdf")]);
+  await page.waitForSelector(".clean-found");
+  await page.uncheck("[name=pictures]");
+  await page.check("[name=links]");
+  const { data } = await save();
+  const after = await everything(data);
+  for (const w of ["Hidden-Author", "offer them less", "salary", "app.alert", "Old draft title", "example.com/offer"]) expect(!after.includes(w), `"${w}" is still in the file`);
+  expect((await readPdf(data)).texts[0].includes("Offer letter"), "the page text was lost");
 });
 
 await check("compress refuses when the result isn't smaller", async () => {

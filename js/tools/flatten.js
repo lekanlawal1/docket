@@ -1,6 +1,7 @@
 import { onePdf, h, esc, download, renamed, plural, busy, status } from "../ui.js";
 import { readBytes, openForEdit, openForView, rasterize } from "../pdf.js";
 import { survey, flattenDoc } from "../flatten.js";
+import { carryLinks } from "../clean.js";
 
 export const intro = "Locks form answers, comments, highlights, stamps and drawings into the page, so they look the same in every app and can't be changed or lost.";
 
@@ -37,7 +38,9 @@ export function mount({ main, desk, files, privateNote }) {
       let data;
       if (desk.querySelector("[name=pictures]").checked) {
         // drawn by pdf.js with the marks showing, then nothing but the pictures kept
-        data = await rasterize(bytesIn, { scale: 2, quality: 0.88, onPage: (n, of) => status(out, `Drawing page ${n} of ${of}...`) });
+        const drawn = await openForEdit(await rasterize(bytesIn, { scale: 2, quality: 0.88, onPage: (n, of) => status(out, `Drawing page ${n} of ${of}...`) }));
+        await carryLinks(await openForEdit(bytesIn), drawn);   // pictures aren't clickable, so links are put back
+        data = await drawn.save();
       } else {
         const doc = await openForEdit(bytesIn);
         await flattenDoc(doc);
