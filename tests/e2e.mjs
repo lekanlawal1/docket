@@ -295,6 +295,47 @@ await check("fill form", async () => {
   expect(filled === "Sam Rowe", "field holds " + filled);
 });
 
+const marked = join(fx, "marked.pdf"), bareHighlight = join(fx, "bare-highlight.pdf");
+// colour at (x, y) in page points from the bottom left, on page `n` of a PDF, drawn by pdf.js
+const colourAt = (data, n, spots) => page.evaluate(async ({ b64, n, spots }) => {
+  const { openForView, drawPage } = await import(new URL("js/pdf.js", location.href).href);
+  const { canvas, viewport } = await drawPage(await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))), n, { scale: 1 });
+  const ctx = canvas.getContext("2d");
+  return spots.map(([x, y]) => { const [u, v] = viewport.convertToViewportPoint(x, y); return [...ctx.getImageData(Math.round(u), Math.round(v), 1, 1).data.slice(0, 3)]; });
+}, { b64: data.toString("base64"), n, spots });
+
+await check("flatten: answers and marks become part of the page, hidden ones stay hidden, links still work", async () => {
+  await open("flatten", [marked]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  const listed = await page.locator(".main .desk").innerText();
+  expect(/1 form field/.test(listed) && /1 stamp/.test(listed) && /1 typed comment/.test(listed), "listed: " + listed);
+  expect(!(await page.isChecked("[name=pictures]")), "pictures switched on for marks that all have their own look");
+  const { name, data } = await save();
+  expect(name === "marked-flat.pdf", "named " + name);
+  const { PDFDocument, PDFName } = await pdfLib();
+  const doc = await PDFDocument.load(data);
+  expect(!doc.getForm().getFields().length, "form fields left");
+  const left = doc.getPages().flatMap((p) => { const a = p.node.Annots(); return a ? a.asArray().map((r) => doc.context.lookup(r).get(PDFName.of("Subtype")).asString()) : []; });
+  expect(left.join() === "/Link", "annotations left: " + left.join());
+  const { texts } = await readPdf(data);
+  expect(texts[0].includes("Ada Moss") && texts[0].includes("APPROVED BY REVIEW"), "answer or comment text not on the page: " + texts[0]);
+  const [red, green, hidden] = await colourAt(data, 1, [[110, 530], [400, 440], [425, 625]]);
+  expect(red[0] > 200 && red[1] < 60, "the box isn't red: " + red);
+  expect(green[1] > 120 && green[0] < 60, "the stamp isn't where its matrix puts it: " + green);
+  expect(hidden[2] < 200 || hidden[0] > 200, "the hidden mark showed up: " + hidden);
+  const [purple] = await colourAt(data, 2, [[150, 150]]);
+  expect(purple[0] > 90 && purple[2] > 90 && purple[1] < 60, "the mark on the turned page is missing: " + purple);
+});
+
+await check("flatten: a highlight saved without its look is kept by drawing the page", async () => {
+  await open("flatten", [bareHighlight]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  expect(await page.isChecked("[name=pictures]"), "pictures not switched on");
+  const { data } = await save();
+  const [yellow] = await colourAt(data, 1, [[210, 702]]);
+  expect(yellow[0] > 200 && yellow[1] > 180 && yellow[2] < 120, "the highlight was lost: " + yellow);
+});
+
 await check("page numbers", async () => {
   await open("page-numbers", [lease]);
   const out = await readPdf((await save()).data);
