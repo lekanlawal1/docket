@@ -421,6 +421,18 @@ await check("iPhone photos (HEIC) open in Chromium, which can't read them itself
   expect((await readPdf((await save()).data)).pages === 1, "the photo didn't become a page");
 });
 
+await check("convert images: a HEIC and a PNG become JPGs in a zip; one picture downloads by itself", async () => {
+  await open("convert-images", haveHeic ? [heic, png] : [png, png]);
+  await page.waitForFunction(() => /2 pictures ready/.test(document.querySelector(".summary-line")?.textContent || ""), null, { timeout: 60_000 });
+  const { name, data } = await save();
+  const names = await zipNames(data);
+  expect(name.endsWith(".zip") && names.length === 2 && names.every((n) => n.endsWith(".jpg")), "zip: " + names);
+  await page.click('.lineup [aria-label^="Remove"]');
+  await page.selectOption("[name=type]", "image/webp");
+  const one = await save();
+  expect(one.name.endsWith(".webp") && one.data.slice(8, 12).toString() === "WEBP", "single file should be a WebP: " + one.name);
+});
+
 await check("qr code", async () => {
   await open("qr");
   await page.fill("[name=text]", "https://example.com");
