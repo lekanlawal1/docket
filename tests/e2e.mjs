@@ -176,6 +176,32 @@ await check("pages per sheet: 4 on one sheet, all upright (one was rotated); 2 p
   expect(sheets.length === 2 && sheets.every((s) => s.w > s.h), "2-up should make 2 landscape sheets");
 });
 
+await check("crop: trimmed margins hug the content; a drawn area becomes the page", async () => {
+  const sizes = (b64) => page.evaluate(async (b64) => {
+    const { openForView, pageTexts } = await import(new URL("js/pdf.js", location.href).href);
+    const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const out = [];
+    for (let n = 1; n <= doc.numPages; n++) { const vp = (await doc.getPage(n)).getViewport({ scale: 1 }); out.push([Math.round(vp.width), Math.round(vp.height)]); }
+    return { sizes: out, texts: await pageTexts(doc) };
+  }, b64);
+  await open("crop", [lease]);
+  await page.waitForFunction(() => /Margins trimmed on 4 pages/.test(document.querySelector(".crop-line")?.textContent || ""));
+  let res = await sizes((await save()).data.toString("base64"));
+  // the lease's content spans roughly x 50-480, y 52-490 of a 612x792 page
+  const [w1, h1] = res.sizes[0];
+  expect(w1 > 420 && w1 < 520 && h1 > 420 && h1 < 520, "trimmed page 1 is " + res.sizes[0]);
+  expect(res.texts[0].includes("Harbour Road"), "text lost when trimming");
+  // draw the top half of page 1 as the area to keep, on every page
+  await page.check("[name=mode][value=draw]");
+  const r = await page.locator(".stage canvas").boundingBox();
+  await page.mouse.move(r.x + 2, r.y + 2); await page.mouse.down();
+  await page.mouse.move(r.x + r.width - 2, r.y + r.height / 2, { steps: 6 }); await page.mouse.up();
+  res = await sizes((await save()).data.toString("base64"));
+  expect(Math.abs(res.sizes[0][0] - 612) < 6 && Math.abs(res.sizes[0][1] - 396) < 6, "drawn crop of page 1 is " + res.sizes[0]);
+  // page 4 is turned a quarter, so its top half as shown is 792 wide by 306 tall
+  expect(Math.abs(res.sizes[3][0] - 792) < 6 && Math.abs(res.sizes[3][1] - 306) < 6, "drawn crop of rotated page 4 is " + res.sizes[3]);
+});
+
 await check("pdf to jpg", async () => {
   await open("pdf-to-jpg", [lease]);
   await page.fill("[name=pages]", "1");
