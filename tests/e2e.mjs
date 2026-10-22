@@ -8,7 +8,7 @@ import { makeFixtures } from "./fixtures.mjs";
 
 const { chromium } = await import(process.env.PW || "playwright");
 const root = new URL("..", import.meta.url).pathname;
-const TYPES = { ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm", ".gz": "application/gzip" };
+const TYPES = { ".png": "image/png", ".webmanifest": "application/manifest+json", ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm", ".gz": "application/gzip" };
 const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path.endsWith("/")) path += "index.html";
@@ -29,7 +29,8 @@ const browser = await chromium.launch({
   // behind a proxy, a deployed copy can only be reached through it
   ...(process.env.BASE && process.env.HTTPS_PROXY && { proxy: { server: process.env.HTTPS_PROXY } }),
 });
-const page = await browser.newPage({ acceptDownloads: true, ignoreHTTPSErrors: !!process.env.CHROME, viewport: { width: 1280, height: 900 } });
+// service workers are tested on their own at the end; elsewhere they would get between the tests and the files
+const page = await browser.newPage({ serviceWorkers: "block", acceptDownloads: true, ignoreHTTPSErrors: !!process.env.CHROME, viewport: { width: 1280, height: 900 } });
 const errors = [];
 page.on("pageerror", (e) => errors.push(e.message));
 // web fonts come from Google; a blocked font isn't the site's fault
@@ -988,6 +989,48 @@ await check("qr codes decode to exactly what was typed", async () => {
   await page.fill("[name=name]", "Sam Rowe");
   await page.fill("[name=phone]", "705-555-0142");
   expect(await decode() === "BEGIN:VCARD\nVERSION:3.0\nFN:Sam Rowe\nTEL:705-555-0142\nEND:VCARD", "contact card wrong");
+});
+
+await check("offline: installable, then merges PDFs and reads a photo with no connection", async () => {
+  if (process.env.BASE) return;   // a deployed copy is reached through the test's proxy, which a service worker bypasses
+  const ctx = await browser.newContext({ acceptDownloads: true, serviceWorkers: "allow", viewport: { width: 1280, height: 900 } });
+  const p = await ctx.newPage();
+  p.on("pageerror", (e) => errors.push(e.message));
+  await p.goto(base);
+  await p.waitForFunction(() => /saved on this device/.test(document.querySelector(".off-line")?.textContent || ""), null, { timeout: 30_000 });
+  const manifest = await p.evaluate(async () => {
+    const m = await (await fetch(document.querySelector("link[rel=manifest]").href)).json();
+    const icons = await Promise.all(m.icons.map(async (i) => (await fetch(new URL(i.src, location.href))).headers.get("content-type")));
+    return { name: m.short_name, display: m.display, icons };
+  });
+  expect(manifest.name === "Docket" && manifest.display === "standalone" && manifest.icons.every((t) => /png/.test(t)), "manifest: " + JSON.stringify(manifest));
+
+  await p.click(".save-all");
+  await p.waitForFunction(() => /Every tool is saved/.test(document.querySelector(".extra-line").textContent), null, { timeout: 120_000 });
+
+  await ctx.setOffline(true);
+  expect(await p.evaluate(() => fetch("https://example.com").then(() => "online", () => "offline")) === "offline", "the browser isn't offline");
+  // a fresh tab, straight to a tool, with no connection
+  const q = await ctx.newPage();
+  q.on("pageerror", (e) => errors.push(e.message));
+  await q.goto(base + "#/merge");
+  await q.waitForSelector(".workbench");
+  await q.locator(".main .dock input").first().setInputFiles([lease, second]);
+  const [dl] = await Promise.all([q.waitForEvent("download"), q.click(".desk .go")]);
+  const { PDFDocument } = await pdfLib();
+  const merged = await PDFDocument.load(await readFile(await dl.path()));
+  const parts = (await PDFDocument.load(await readFile(lease))).getPageCount() + (await PDFDocument.load(await readFile(second))).getPageCount();
+  expect(merged.getPageCount() === parts, `merged ${merged.getPageCount()} pages, not ${parts}`);
+
+  // reading text needs the big reader, saved above
+  await q.goto(base + "#/photo-to-text");
+  await q.reload();
+  await q.waitForSelector(".workbench");
+  await q.locator(".main .dock input").first().setInputFiles([png]);
+  await q.click(".desk .go");
+  await q.waitForSelector(".ocr-result:not([hidden])", { timeout: 120_000 });
+  expect((await q.inputValue(".ocr-result textarea")).includes("Docket"), "nothing read offline");
+  await ctx.close();
 });
 
 await browser.close();

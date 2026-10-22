@@ -5,8 +5,9 @@
   "description": "PDF and document tools that run in the browser.",
   "scripts": {
     "start": "npx serve .",
-    "test": "node --test tests/*.test.mjs",
-    "test:e2e": "node tests/e2e.mjs"
+    "test": "node scripts/offline-list.mjs --check && node --test tests/*.test.mjs",
+    "test:e2e": "node tests/e2e.mjs",
+    "offline": "node scripts/offline-list.mjs"
   },
   "devDependencies": {
     "playwright": "1.56.1",
