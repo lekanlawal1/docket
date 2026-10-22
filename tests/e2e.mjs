@@ -991,6 +991,22 @@ await check("qr codes decode to exactly what was typed", async () => {
   expect(await decode() === "BEGIN:VCARD\nVERSION:3.0\nFN:Sam Rowe\nTEL:705-555-0142\nEND:VCARD", "contact card wrong");
 });
 
+await check("offline panel gives each browser its own install steps", async () => {
+  const agents = {
+    "Add to Dock": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Safari/605.1.15",
+    "Add to Home Screen": "Mozilla/5.0 (iPhone; CPU iPhone OS 17_5 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.5 Mobile/15E148 Safari/604.1",
+    "Chrome or Edge": "Mozilla/5.0 (Macintosh; Intel Mac OS X 14_5) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/126.0.0.0 Safari/537.36",
+  };
+  for (const [words, userAgent] of Object.entries(agents)) {
+    const ctx = await browser.newContext({ userAgent, serviceWorkers: "block" });
+    const p = await ctx.newPage();
+    await p.goto(base);
+    const note = await p.locator("#offline .note").innerText();
+    await ctx.close();
+    expect(note.includes(words), `${words}: got "${note}"`);
+  }
+});
+
 await check("offline: installable, then merges PDFs and reads a photo with no connection", async () => {
   if (process.env.BASE) return;   // a deployed copy is reached through the test's proxy, which a service worker bypasses
   const ctx = await browser.newContext({ acceptDownloads: true, serviceWorkers: "allow", viewport: { width: 1280, height: 900 } });

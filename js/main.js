@@ -147,7 +147,10 @@ if ("serviceWorker" in navigator) navigator.serviceWorker.addEventListener("mess
 
 function offlinePanel() {
   const installed = matchMedia("(display-mode: standalone)").matches || navigator.standalone;
-  const apple = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const ua = navigator.userAgent;
+  const apple = /iPhone|iPad|iPod/.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  // Safari on a Mac installs from its File menu (Safari 17, macOS Sonoma, onwards)
+  const macSafari = !apple && /Macintosh/.test(ua) && /Safari\//.test(ua) && !/Chrome|Chromium|Edg|Firefox|OPR/.test(ua);
   const el = h(`<section id="offline" style="padding: 8px 0 56px">
     <div class="offline card">
       <div class="offline-text"><h2>Take it with you</h2>
@@ -155,6 +158,7 @@ function offlinePanel() {
         <p class="extra-line" hidden></p>
         <p class="note">${installed ? "You're using Docket as an installed app." : apple
           ? "On an iPhone or iPad: tap Share, then <b>Add to Home Screen</b>, and Docket opens like an app."
+          : macSafari ? "To install it in Safari: choose <b>File → Add to Dock</b> (macOS Sonoma or later). On older macOS, Safari can't install sites; use Chrome or Edge, or keep Docket in a tab."
           : "To install it with its own icon and window: in Chrome or Edge, use the install button here or in the address bar; on Android, choose <b>Add to Home screen</b> from the browser menu."}</p></div>
       <div class="offline-actions">
         <button type="button" class="pill install-btn" ${installPrompt ? "" : "hidden"}>Install Docket</button>
