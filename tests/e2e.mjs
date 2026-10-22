@@ -42,6 +42,7 @@ await page.screenshot({ path: png });
 
 let failed = 0;
 async function check(name, fn) {
+  if (process.env.ONLY && !name.includes(process.env.ONLY)) return;   // ONLY=scan runs just those
   const before = errors.length;
   try {
     await fn();
@@ -492,6 +493,98 @@ await check("make searchable: a scan becomes searchable text", async () => {
   // on a sideways page every word is its own line, so compare with the line breaks taken out
   expect(out.texts[3].replace(/\s+/g, " ").includes("Harbour Road"), "the sideways page wasn't read");
   expect(out.texts[1].includes("Page 2"), "page 2 (already text) lost its text");
+});
+
+const { cameraCorners } = await import("./camera.mjs");
+// a phone photo of page 1 of the lease: on a dark desk, at an angle, with a shadow across it
+const photographed = async (corners, name) => {
+  const b64 = await page.evaluate(async ({ b64, corners }) => {
+    const { openForView, drawPage } = await import(new URL("js/pdf.js", location.href).href);
+    const { homography, project } = await import(new URL("js/scanmath.js", location.href).href);
+    const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const sheet = (await drawPage(doc, 1, { width: 1400 })).canvas;
+    const sd = sheet.getContext("2d").getImageData(0, 0, sheet.width, sheet.height).data;
+    const W = 1500, H = 2000, photo = new ImageData(W, H);
+    const back = corners ? homography(corners.map(([x, y]) => [x * W, y * H]), [[0, 0], [sheet.width, 0], [sheet.width, sheet.height], [0, sheet.height]]) : null;
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647 - 0.5) * 14;
+    for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
+      const o = (y * W + x) * 4;
+      let r = 92 + 18 * Math.sin(x / 23 + y / 140) + rnd(), g = r * 0.72, b = r * 0.5;   // wood
+      const [u, v] = back ? project(back, x + 0.5, y + 0.5) : [-1, -1];
+      if (u >= 0 && v >= 0 && u < sheet.width && v < sheet.height) {
+        const i = (Math.floor(v) * sheet.width + Math.floor(u)) * 4, shade = 0.97 - 0.22 * (x / W) * (y / H) + rnd() / 255;
+        r = sd[i] * shade; g = sd[i + 1] * shade * 0.98; b = sd[i + 2] * shade * 0.93;   // warm indoor light
+      }
+      photo.data[o] = r; photo.data[o + 1] = g; photo.data[o + 2] = b; photo.data[o + 3] = 255;
+    }
+    const c = Object.assign(document.createElement("canvas"), { width: W, height: H });
+    c.getContext("2d").putImageData(photo, 0, 0);
+    const blob = await new Promise((r) => c.toBlob(r, "image/jpeg", 0.88));
+    let s = ""; for (const x of new Uint8Array(await blob.arrayBuffer())) s += String.fromCharCode(x);
+    return btoa(s);
+  }, { b64: (await readFile(lease)).toString("base64"), corners });
+  const path = join(fx, name);
+  await (await import("node:fs/promises")).writeFile(path, Buffer.from(b64, "base64"));
+  return path;
+};
+
+await check("scan: an angled phone photo is found, straightened and cleaned, and OCR reads it", async () => {
+  // taken by a phone held at an angle, so the far edge of the page looks shorter
+  const corners = cameraCorners({ tiltX: 24, tiltY: -14, spin: 6, distance: 1.5, focal: 1500, W: 1500, H: 2000 });
+  await open("scan", [await photographed(corners, "page-photo.jpg")]);
+  await page.waitForSelector(".scan-stage .corner");
+  expect(!(await page.locator(".scan-tip.warn").count()), "it didn't find the page");
+  // the handles sit on the real corners
+  const found = await page.$$eval(".scan-stage .corner", (els) => els.map((e) => [parseFloat(e.style.left) / 100, parseFloat(e.style.top) / 100]));
+  found.forEach(([x, y], i) => expect(Math.abs(x - corners[i][0]) < 0.015 && Math.abs(y - corners[i][1]) < 0.015, `corner ${i} at ${x.toFixed(3)},${y.toFixed(3)}, not ${corners[i]}`));
+
+  const { name, data } = await save();
+  expect(name === "page-photo-scan.pdf", "named " + name);
+  const { PDFDocument } = await pdfLib();
+  const doc = await PDFDocument.load(data);
+  const { width, height } = doc.getPage(0).getSize();
+  expect(Math.abs(width / height - 612 / 792) < 0.02, `page shape ${width} × ${height}, not Letter's`);
+  // the flattened page: white all round its edges (no desk left), and the shadow cleaned away
+  const edges = await page.evaluate(async (b64) => {
+    const { openForView, drawPage } = await import(new URL("js/pdf.js", location.href).href);
+    const c = (await drawPage(await openForView(Uint8Array.from(atob(b64), (ch) => ch.charCodeAt(0))), 1, { width: 400 })).canvas;
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data, at = (x, y) => d[(y * c.width + x) * 4];
+    const vals = [];
+    for (let x = 4; x < c.width - 4; x += 3) vals.push(at(x, 3), at(x, c.height - 4));
+    for (let y = 4; y < c.height - 4; y += 3) vals.push(at(3, y), at(c.width - 4, y));
+    return { dark: vals.filter((v) => v < 200).length / vals.length, corner: at(c.width - 30, c.height - 30) };
+  }, data.toString("base64"));
+  expect(edges.dark < 0.02, `${Math.round(edges.dark * 100)}% of the edge is dark: the desk is still showing`);
+  expect(edges.corner > 235, `the shadowed corner is ${edges.corner}, not white`);
+
+  // straight on to Make searchable, with the scan already loaded
+  await page.click(".desk .ocr");
+  await page.waitForURL(/#\/searchable/);
+  await page.waitForSelector(".desk .go");
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 180_000 }), page.locator(".desk .go").click()]);
+  const text = (await readPdf(await readFile(await dl.path()))).texts[0];
+  for (const w of ["Harbour Road", "1,450", "landlord@example.com"]) expect(text.includes(w), `"${w}" not read from the scan: ${text.slice(0, 200)}`);
+});
+
+await check("scan: no page in the photo says so, and dragging the corners sets them", async () => {
+  await open("scan", [await photographed(null, "desk.jpg")]);
+  await page.waitForSelector(".scan-tip.warn");
+  const handle = page.locator(".scan-stage .corner").first();
+  const box = await handle.boundingBox(), stage = await page.locator(".scan-stage").boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(stage.x + stage.width * 0.3, stage.y + stage.height * 0.25, { steps: 5 });
+  await page.mouse.up();
+  const left = parseFloat(await handle.evaluate((e) => e.style.left));
+  expect(Math.abs(left - 30) < 1.5, `corner left at ${left}%`);
+  expect(!(await page.locator(".scan-tip.warn").count()), "still says the edges aren't set");
+  await page.click(".scan-result .rot");
+  const c = await page.$eval(".scan-result canvas", (e) => [e.width, e.height]);
+  const { data } = await save();
+  const { PDFDocument } = await pdfLib();
+  const size = (await PDFDocument.load(data)).getPage(0).getSize();
+  expect((c[0] > c[1]) === (size.width > size.height), "the turned page didn't keep its turn");
 });
 
 await check("make searchable reads French, accents and all", async () => {
