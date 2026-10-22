@@ -254,6 +254,21 @@ ol.out-text { white-space: normal; padding-left: 40px; }
 .pv-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 ol.out-text li + li { margin-top: 10px; }
 .found-group { margin-bottom: 14px; }
+.compare-slots { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; margin-bottom: 18px; }
+.compare-slot h3 { margin: 0 0 8px; font-size: 14px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .08em; }
+.compare-slot .result { flex-wrap: wrap; }
+.compare-slot .warn { color: var(--bad); }
+@media (max-width: 640px) { .compare-slots { grid-template-columns: 1fr; } }
+.changes { display: flex; flex-direction: column; gap: 10px; }
+.change { padding: 12px 14px; border-radius: 12px; background: var(--card); border: 1px solid var(--card-line); border-left-width: 4px; }
+.change.added { border-left-color: var(--good); } .change.removed { border-left-color: var(--bad); } .change.changed { border-left-color: var(--focus); }
+.change .where { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-bottom: 4px; }
+.change .kind { font-weight: 600; color: var(--ink); }
+.change .numtag { font-size: 12px; font-weight: 600; padding: 1px 8px; border-radius: 999px; background: var(--field); border: 1px solid var(--field-line); color: var(--ink); }
+.change p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.change .ctx { color: var(--muted); }
+.change del { background: color-mix(in srgb, var(--bad) 18%, transparent); color: var(--ink); text-decoration-color: var(--bad); padding: 0 2px; border-radius: 3px; }
+.change ins { background: color-mix(in srgb, var(--good) 22%, transparent); color: var(--ink); text-decoration: none; padding: 0 2px; border-radius: 3px; }
 .found-group h3 { margin: 0 0 6px; font-size: 15px; }
 .found-group ul { margin: 0; padding-left: 18px; }
 canvas.pad { width: 100%; height: 160px; background: #fff; border-radius: 10px; border: 1px solid var(--field-line); touch-action: none; cursor: crosshair; }

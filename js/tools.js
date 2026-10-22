@@ -31,6 +31,7 @@ export const PIERS = [
     { id: "grayscale", name: "Grayscale", icon: "gull", what: "Drop the colour to save ink." },
   ] },
   { no: "06", name: "Read", blurb: "Understand it faster", tint: "--tint-6", tools: [
+    { id: "compare", name: "Compare PDFs", icon: "binoculars", what: "See every word that changed between two versions." },
     { id: "summary", name: "Summary", icon: "lighthouse", what: "The key sentences, taken word for word from the file." },
     { id: "find", name: "Find dates and amounts", icon: "net", what: "Every date, amount, email and link in one list." },
   ] },

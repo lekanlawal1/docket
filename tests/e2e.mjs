@@ -22,7 +22,7 @@ const base = process.env.BASE || `http://localhost:${server.address().port}/`;
 
 const fx = await mkdtemp(join(tmpdir(), "docket-"));
 await makeFixtures(fx);
-const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf");
+const lease = join(fx, "lease.pdf"), second = join(fx, "second.pdf"), form = join(fx, "form.pdf"), photo = join(fx, "photo.pdf"), bail = join(fx, "bail.pdf"), leaseV2 = join(fx, "lease-v2.pdf");
 
 const browser = await chromium.launch({
   ...(process.env.CHROME && { executablePath: process.env.CHROME }),
@@ -345,6 +345,31 @@ await check("make searchable reads French, accents and all", async () => {
   const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 180_000 }), page.locator(".desk .go").click()]);
   const text = (await readPdf(await readFile(await dl.path()))).texts[0].replace(/\s+/g, " ");
   for (const w of ["Bail résidentiel", "réparations nécessaires", "délai raisonnable", "dépôt de garantie"]) expect(text.includes(w), `"${w}" not found in: ${text.slice(0, 160)}`);
+});
+
+await check("compare two versions: the right changes, on the right pages", async () => {
+  await open("compare");
+  await page.locator(".compare-slot").nth(0).locator("input[type=file]").setInputFiles(lease);
+  await page.locator(".compare-slot").nth(1).locator("input[type=file]").setInputFiles(leaseV2);
+  await page.waitForSelector(".change");
+  const cards = await page.$$eval(".change", (els) => els.map((e) => e.innerText.replace(/\s+/g, " ")));
+  expect(cards.length === 3, "expected 3 changes (rent, late fee gone, insurance added), got " + cards.length + ": " + cards.join(" | "));
+  expect(cards.some((c) => /page 2 → page 2/.test(c) && /\$1,450/.test(c) && /\$1,550/.test(c) && /Numbers/.test(c)), "rent change missing");
+  expect(cards.some((c) => /Late rent will be charged/.test(c)), "removed late-fee sentence missing");
+  expect(cards.some((c) => /contents insurance/.test(c)), "added insurance sentence missing");
+  const where = await page.$$eval(".change .where", (els) => els.map((e) => e.innerText));
+  expect(where.every((w) => /page 2 → page 2/.test(w)), "every change is on page 2 of both; page 3 is only re-wrapped: " + where.join(" | "));
+  await page.check("[name=numbers]");
+  expect(await page.locator(".change").count() === 2, "numbers filter: rent and the late fee ($50) only");
+  const { data } = await save();
+  expect(/3 changes/.test(data.toString()) && /Added:\s+\$1,550/.test(data.toString()), "report text wrong");
+});
+
+await check("compare: the same file twice says so", async () => {
+  await open("compare");
+  await page.locator(".compare-slot").nth(0).locator("input[type=file]").setInputFiles(lease);
+  await page.locator(".compare-slot").nth(1).locator("input[type=file]").setInputFiles(lease);
+  await page.waitForSelector("text=No differences in the words");
 });
 
 await check("pdf to word", async () => {
