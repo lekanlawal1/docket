@@ -265,6 +265,11 @@ ol.out-text { white-space: normal; padding-left: 40px; }
 .doc-preview > :first-child { margin-top: 0; }
 .pv-table { border-collapse: collapse; margin: 0 0 .9em; font-size: 14px; }
 .pv-table td { border: 1px solid var(--field-line); padding: 4px 8px; vertical-align: top; }
+.sheet-preview section { margin-bottom: 18px; }
+.sheet-preview h3 { margin: 0 0 6px; font-size: 14px; color: var(--muted); font-weight: 600; }
+.sheet-preview .sheet-scroll { overflow-x: auto; max-width: 100%; }
+.sheet-preview .more { margin: 4px 0 0; font-size: 13px; color: var(--muted); }
+.pv-table th { border: 1px solid var(--field-line); padding: 4px 8px; text-align: left; background: var(--field); font-weight: 600; }
 .pv-table td.num { text-align: right; font-variant-numeric: tabular-nums; }
 ol.out-text li + li { margin-top: 10px; }
 .found-group { margin-bottom: 14px; }

@@ -429,6 +429,33 @@ await check("compare: the same file twice says so", async () => {
   await page.waitForSelector("text=No differences in the words");
 });
 
+await check("pdf to excel: a printed statement's table, with real numbers", async () => {
+  const printer = await browser.newPage();
+  const row = (d, desc, amt) => `<tr><td style="padding:4px 18px 4px 0">${d}</td><td style="padding:4px 18px">${desc}</td><td style="padding:4px 0 4px 18px; text-align:right">${amt}</td></tr>`;
+  await printer.setContent(`<body style="font-family: Georgia, serif; font-size: 12pt; margin: 0">
+    <h1>Harbour Bank statement</h1><p>Account 4417-2290, October 2026. Thank you for banking with us; your statement is below.</p>
+    <table style="border-collapse: collapse"><tr><th style="text-align:left; padding:4px 18px 4px 0">Date</th><th style="text-align:left; padding:4px 18px">Description</th><th style="text-align:right; padding:4px 0 4px 18px">Amount</th></tr>
+    ${row("Oct 1", "Rent payment", "($1,450.00)")}${row("Oct 3", "Payroll deposit", "$2,310.55")}${row("Oct 9", "Grocery store", "($86.12)")}${row("Oct 15", "Interest", "$0.42")}${row("Oct 28", "Card fee", "($4.00)")}</table>
+    <p>Questions? Call us any time.</p></body>`);
+  const printed = join(fx, "statement.pdf");
+  await printer.pdf({ path: printed, format: "Letter", margin: { top: "72px", bottom: "72px", left: "72px", right: "72px" } });
+  await printer.close();
+
+  await open("pdf-to-excel", [printed]);
+  await page.waitForSelector(".sheet-preview table");
+  expect(/Found 1 table/.test(await page.locator(".summary-line").innerText()), "should find exactly one table");
+  const { data } = await save();
+  const path = join(fx, "statement.xlsx");
+  await (await import("node:fs/promises")).writeFile(path, data);
+  const xml = (await import("node:child_process")).execFileSync("python3", ["-c", "import sys, zipfile; print(zipfile.ZipFile(sys.argv[1]).read('xl/worksheets/sheet1.xml').decode())", path], { encoding: "utf8" });
+  const sheet = [...xml.matchAll(/<row r="\d+">(.*?)<\/row>/g)].map(([, cells]) =>
+    [...cells.matchAll(/<c [^>]*>(?:<v>([^<]*)<\/v>|<is><t[^>]*>([^<]*)<\/t><\/is>)<\/c>/g)].map(([, v, t]) => v ?? t).join("|"));
+  expect(sheet[0] === "Date|Description|Amount", "header row: " + sheet[0]);
+  expect(sheet[1] === "Oct 1|Rent payment|-1450", "row 1: " + sheet[1]);
+  expect(sheet[2] === "Oct 3|Payroll deposit|2310.55", "row 2: " + sheet[2]);
+  expect(sheet.length === 6, "rows: " + sheet.length);
+});
+
 await check("pdf to word", async () => {
   await open("pdf-to-word", [lease]);
   await page.waitForSelector(".doc-preview p");
