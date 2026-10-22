@@ -21,6 +21,8 @@ toggle.addEventListener("click", () => {
 // Dropped files wait here until the person picks a tool, which then starts with them loaded.
 let waiting = [];
 export const takeWaiting = () => { const f = waiting; waiting = []; return f; };
+// a tool passing its result on to the next one
+export const handOff = (files) => { waiting = files; };
 
 function suggestions(files) {
   const pdfs = files.filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)).length;
@@ -28,7 +30,7 @@ function suggestions(files) {
   if (pdfs === 2) return ["compare", "merge", "compress"];
   if (pdfs > 2) return ["merge", "compress", "pdf-to-jpg"];
   if (pdfs === 1) return ["organise", "split", "sign", "redact", "compress", "summary"];
-  if (images) return ["images-to-pdf", "convert-images", "resize-image", "compress-image"];
+  if (images) return ["scan", "images-to-pdf", "convert-images", "resize-image", "compress-image"];
   return [];
 }
 

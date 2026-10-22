@@ -27,6 +27,7 @@ export const ICONS = {
   crate: "M3 8h18v12H3zM3 12h18M3 16h18M9 8v12M15 8v12M5.5 8 8 4.5h8L18.5 8",
   swab: "M12 3v10M8 13h8l1 2H7zM7.5 15 6 21M10 15l-.5 6M12 15v6M14 15l.5 6M16.5 15l1.5 6",
   pennants: "M3 3v18M3 4h7l-2 3 2 3H3M13 4h7l-2 3 2 3h-7zM3 13h7l-2 3 2 3H3M13 13h7l-2 3 2 3h-7z",
+  scan: "M4 8V4h4M16 4h4v4M20 16v4h-4M8 20H4v-4M8.5 7h7v10h-7zM10.5 10h3M10.5 13h3",
   cropmarks: "M7 3v14h14M3 7h14v14",
   pearl: "M3 5h18v14H3zM3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0M15.5 9.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
   marlinspike: "M14.5 3.5l6 6-2 2-6-6zM12.5 7.5 4 16l-1 5 5-1 8.5-8.5M6 15l3 3",

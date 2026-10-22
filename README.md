@@ -13,7 +13,7 @@ Most free PDF sites upload your file to their server to do something your own co
 | Pier | Tools |
 | --- | --- |
 | Organise | Merge, Split, Organise pages, Extract pages, Crop pages, Pages per sheet, Remove blank pages |
-| Convert | PDF to JPG, Extract images, Images to PDF, PDF to Word, PDF to Excel, PDF to text |
+| Convert | PDF to JPG, Extract images, Scan with your phone, Images to PDF, PDF to Word, PDF to Excel, PDF to text |
 | Edit and sign | Add text and marks, Sign, Fill a form, Page numbers, Watermark |
 | Protect | Redact, Password, Remove metadata |
 | Shrink and fix | Compress, Make searchable, Repair PDF, Grayscale |
