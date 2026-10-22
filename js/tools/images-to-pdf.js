@@ -1,6 +1,6 @@
 import { h, esc, dock, download, bytes, plural, busy, status } from "../ui.js";
 import { svg } from "../icons.js";
-import { lib } from "../pdf.js";
+import { lib, readBytes } from "../pdf.js";
 import { openImage } from "../images.js";
 
 export const intro = "Photos, scans and screenshots into one PDF, one image per page.";
@@ -10,7 +10,7 @@ const MARGINS = { none: 0, small: 18, wide: 42 };
 
 // Any image the browser can show becomes a JPG or PNG that pdf-lib can embed.
 async function asEmbeddable(file) {
-  const raw = new Uint8Array(await file.arrayBuffer());
+  const raw = await readBytes(file);
   if (file.type === "image/jpeg") return { kind: "jpg", data: raw };
   if (file.type === "image/png") return { kind: "png", data: raw };
   const bitmap = await openImage(file);

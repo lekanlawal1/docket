@@ -16,7 +16,21 @@ export async function viewer() {
   return pdfjs;
 }
 
-export const readBytes = async (file) => new Uint8Array(await file.arrayBuffer());
+// A picked or dropped file's bytes. The browser only holds a pointer to the file on disk, so
+// reading fails if the file changed, moved or isn't fully on the disk since it was chosen:
+// overwritten by a new download, renamed, or still syncing from iCloud or OneDrive.
+export async function readBytes(file) {
+  try {
+    return new Uint8Array(await file.arrayBuffer());
+  } catch (err) {
+    throw unreadable(file, err);
+  }
+}
+
+export function unreadable(file, err) {
+  if (!/NotReadable|NotFound|Security/.test(err?.name || "")) return err;
+  return new Error(`${file.name} couldn't be read from your disk. That happens when a file changes, moves or is still downloading (or syncing from iCloud) after you choose it. Choose it again from Finder or File Explorer.`);
+}
 
 // A pdf-lib document, with a plain-words error for locked files.
 // pdf-lib is strict: it refuses files that open fine elsewhere, like ones "secured" against

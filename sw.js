@@ -6,7 +6,7 @@
 // cache first.
 
 // files:start (written by scripts/offline-list.mjs)
-const VERSION = "f792fda2464b";
+const VERSION = "182dfc4c9e5e";
 const VENDOR_VERSION = "b63264b8a26c";
 const CORE = [
   "assets/apple-touch-icon.png",
