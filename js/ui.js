@@ -36,8 +36,17 @@ export function dock({ accept = "", multiple = false, title = "Drop files on the
   return el;
 }
 
+// Whoever wants to know when a tool hands back a file (the "keep working on it" row).
+const resultListeners = new Set();
+export function onResult(fn) {
+  resultListeners.add(fn);
+  return () => resultListeners.delete(fn);
+}
+
 export function download(data, name, type = "application/pdf") {
   const blob = data instanceof Blob ? data : new Blob([data], { type });
+  const file = new File([blob], name, { type: blob.type || type });
+  resultListeners.forEach((fn) => fn(file));
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href: url, download: name });
   document.body.append(a);

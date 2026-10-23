@@ -514,6 +514,39 @@ await check("resize image to a preset", async () => {
   expect(name.includes("1080x1080"), "name: " + name);
 });
 
+await check("keep working: merge, then page numbers on the merged file without saving and re-adding it", async () => {
+  await open("merge", [lease, second]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  const merged = await save();
+  const row = page.locator(".desk .next-steps");
+  await row.waitFor();
+  expect((await row.innerText()).includes(merged.name), "the row doesn't name the merged file");
+  expect(!(await page.locator('.next-chip[data-id="merge"]').count()), "offers Merge again from Merge");
+  await page.click('.next-chip[data-id="page-numbers"]');
+  await page.waitForURL(/#\/page-numbers/);
+  await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".main .result"));
+  expect((await page.locator(".main").innerText()).includes(merged.name), "page numbers didn't open the merged file");
+  const numbered = await save();
+  const before = await readPdf(merged.data), after = await readPdf(numbered.data);
+  expect(after.pages === before.pages, `pages ${after.pages}, merged had ${before.pages}`);
+  expect(after.texts[after.pages - 1].includes(String(after.pages)), "no number on the last page");
+  // and the chain goes on
+  await page.locator(".desk .next-steps").waitFor();
+  expect(await page.locator('.next-chip[data-id="sign"]').count(), "no Sign after page numbers");
+  // "More tools" shows the rest
+  await page.click(".next-chip.more");
+  expect(await page.locator('.next-chip[data-id="metadata"]').isVisible(), "More tools didn't show the rest");
+});
+
+await check("keep working on a picture: resize, then compress the resized one", async () => {
+  await open("resize-image", [png]);
+  await page.check("[name=mode][value=preset]");
+  const { name } = await save();
+  await page.click('.next-chip[data-id="compress-image"]');
+  await page.waitForURL(/#\/compress-image/);
+  await page.waitForFunction((n) => document.querySelector(".main").innerText.includes(n), name);
+});
+
 await check("compress image under 100 KB", async () => {
   await open("compress-image", [png]);
   await page.selectOption("[name=limit]", "100");

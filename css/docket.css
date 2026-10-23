@@ -360,3 +360,10 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .cv-line { position: absolute; top: 0; bottom: 0; left: var(--split); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); pointer-events: none; }
 .cv-slider { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; font-size: 14px; color: var(--muted); }
 .cv-slider input { flex: 1; }
+.next-steps { margin-top: 16px; padding: 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--card-line); }
+.next-title { margin: 0 0 10px; font-size: 14px; overflow-wrap: anywhere; }
+.next-chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.next-chip { display: inline-flex; align-items: center; gap: 6px; min-height: 40px; padding: 6px 12px; border-radius: 999px; border: 1px solid var(--field-line); background: var(--panel); color: var(--ink-strong); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; }
+.next-chip:hover { border-color: var(--focus); }
+.next-chip.more { background: transparent; font-weight: 500; }
+.next-chip svg.art { stroke: currentColor; }

@@ -3,7 +3,7 @@
 
 import { PIERS, findTool } from "./tools.js";
 import { svg } from "./icons.js";
-import { h, esc, dock, privateNote } from "./ui.js";
+import { h, esc, dock, privateNote, onResult } from "./ui.js";
 
 const app = document.getElementById("app");
 
@@ -195,8 +195,42 @@ function offlinePanel() {
   return el;
 }
 
+// ---------------------------------------------------------------- keep working on the result
+// After a tool hands back a PDF or a picture, the next tools are one tap away, with the result
+// already loaded: merge, then compress, then sign, without saving and dropping it in again.
+const NEXT = {
+  pdf: ["compress", "sign", "annotate", "organise", "page-numbers", "password", "merge", "watermark", "redact", "split", "flatten", "pdf-to-word", "metadata", "searchable"],
+  image: ["images-to-pdf", "enhance", "compress-image", "resize-image", "convert-images", "photo-to-text", "scan"],
+};
+const SHOWN = 6;
+let stopResults = null;
+
+function keepWorking(desk, currentId, file) {
+  desk.querySelector(".next-steps")?.remove();
+  const kind = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? "pdf" : /^image\//.test(file.type) ? "image" : null;
+  if (!kind) return;
+  const tools = NEXT[kind].filter((id) => id !== currentId).map(findTool).filter((t) => t && !t.soon);
+  const chip = (t, hidden) => `<button type="button" class="next-chip" data-id="${t.id}" ${hidden ? "hidden" : ""}>${svg(t.icon, { size: 18 })}<span>${esc(t.name)}</span></button>`;
+  const el = h(`<div class="next-steps" role="region" aria-label="Keep working on this file">
+    <p class="next-title">Keep working on <b>${esc(file.name)}</b></p>
+    <div class="next-chips">${tools.map((t, i) => chip(t, i >= SHOWN)).join("")}
+      ${tools.length > SHOWN ? `<button type="button" class="next-chip more">More tools</button>` : ""}</div>
+  </div>`);
+  el.addEventListener("click", (e) => {
+    const btn = e.target.closest(".next-chip");
+    if (!btn) return;
+    if (btn.classList.contains("more")) { el.querySelectorAll(".next-chip[hidden]").forEach((b) => (b.hidden = false)); btn.remove(); return; }
+    waiting = [file];
+    location.hash = "#/" + btn.dataset.id;
+  });
+  const note = desk.querySelector(".private-note");
+  note ? note.before(el) : desk.append(el);
+}
+
 // ---------------------------------------------------------------- a tool page
 async function toolPage(id) {
+  stopResults?.();
+  stopResults = null;
   const tool = findTool(id);
   if (!tool) return home();
   document.title = `${tool.name} | Docket`;
@@ -220,6 +254,7 @@ async function toolPage(id) {
     const mod = await import(`./tools/${id}.js`);
     if (mod.intro) page.querySelector(".tool-intro").textContent = mod.intro;
     mod.mount({ main, desk, files: takeWaiting(), privateNote });
+    stopResults = onResult((file) => keepWorking(desk, id, file));
   } catch (err) {
     console.error(err);
     main.innerHTML = `<p class="status bad">This tool couldn't load. Check your connection and refresh the page.</p>`;
