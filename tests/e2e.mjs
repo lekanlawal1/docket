@@ -514,6 +514,72 @@ await check("resize image to a preset", async () => {
   expect(name.includes("1080x1080"), "name: " + name);
 });
 
+await check("workspace: one document, several tools, undo and redo, then one download", async () => {
+  const accept = (d) => d.accept();
+  page.on("dialog", accept);   // the "unsaved changes" prompt, when the test moves on
+  try {
+    await open("workspace", [lease]);
+    const lp = (await readPdf(await readFile(lease))).pages;
+    await page.waitForFunction((n) => document.querySelectorAll(".ws-page").length === n, lp);
+    expect(await page.locator(".ws-history li").count() === 1, "history should start with one step");
+
+    // page numbers, from the Workspace: the tool opens with the document, and saving comes back
+    await page.click('[data-tool="page-numbers"]');
+    await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".ws-banner") && document.querySelector(".main .result"));
+    let downloaded = false;
+    const spy = () => (downloaded = true);
+    page.on("download", spy);
+    await page.click(".desk .go");
+    await page.waitForURL(/#\/workspace/);
+    await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 2);
+
+    // a watermark on top
+    await page.click('[data-tool="watermark"]');
+    await page.waitForFunction(() => document.title.startsWith("Watermark") && document.querySelector(".main .result"));
+    await page.click(".desk .go");
+    await page.waitForURL(/#\/workspace/);
+    await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 3);
+    page.off("download", spy);
+    expect(!downloaded, "a tool opened from the Workspace downloaded its result instead of handing it back");
+    const labels = await page.$$eval(".ws-history .what", (els) => els.map((e) => e.textContent));
+    expect(labels.join() === "Opened,Page numbers,Watermark", "history: " + labels.join());
+
+    // leaving a tool without saving changes nothing
+    await page.click('[data-tool="sign"]');
+    await page.waitForSelector(".ws-banner a");
+    await page.click(".ws-banner a");
+    await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 3);
+
+    // undo, then redo
+    await page.click('[data-act="undo"]');
+    await page.waitForSelector('.ws-history button.undone');
+    expect((await page.locator(".ws-history button.on .what").innerText()) === "Page numbers", "undo didn't step back");
+    await page.click('[data-act="redo"]');
+    await page.waitForFunction(() => document.querySelector(".ws-history button.on .what").textContent === "Watermark");
+
+    // one download, with both changes in it
+    await page.fill("[name=saveName]", "lease-final");
+    const { name, data } = await save(".desk .go");
+    expect(name === "lease-final.pdf", "named " + name);
+    const out = await readPdf(data);
+    expect(out.pages === lp, `pages ${out.pages}, not ${lp}`);
+    expect(out.texts.every((t) => t.includes("DRAFT")), "the watermark is missing");
+    expect(out.texts[lp - 1].includes(String(lp)), "the page numbers are missing");
+  } finally {
+    page.off("dialog", accept);
+  }
+});
+
+await check("workspace: a tool's result can be opened in the Workspace", async () => {
+  await open("merge", [lease, second]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  await save();
+  await page.click(".next-chip[data-ws]");
+  await page.waitForURL(/#\/workspace/);
+  await page.waitForSelector(".ws-page");
+  expect((await page.locator(".ws-history .what").first().innerText()) === "From Merge", "first step should say where it came from");
+});
+
 await check("keep working: merge, then page numbers on the merged file without saving and re-adding it", async () => {
   await open("merge", [lease, second]);
   await page.waitForSelector(".desk .go:not([disabled])");
