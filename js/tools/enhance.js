@@ -27,7 +27,8 @@ function sharpen(bitmap, factor) {
 }
 
 function boxBlur(src, w, hgt, r) {
-  const tmp = new Float32Array(src.length), out = new Float32Array(src.length);
+  // whole bytes rather than floats: a 12-megapixel photo then needs 48 MB per copy, not 192
+  const tmp = new Uint8ClampedArray(src.length), out = new Uint8ClampedArray(src.length);
   for (const [from, to, horizontal] of [[src, tmp, true], [tmp, out, false]]) {
     for (let a = 0; a < (horizontal ? hgt : w); a++) for (let c = 0; c < 3; c++) {
       const len = horizontal ? w : hgt, at = (k) => (horizontal ? (a * w + k) : (k * w + a)) * 4 + c;
@@ -47,25 +48,42 @@ export function mount({ main, desk, files, privateNote }) {
 
   oneImage(main, { files, onLoad: (file, bitmap) => {
     const W = bitmap.width, H = bitmap.height;
-    const fits = (f) => W * H * f * f <= MAX_PIXELS;
+    // A picture too big to enlarge is reduced first, just enough that the result fits what a
+    // browser can save. (For a big phone photo that means less real detail than it started with.)
+    const plan = (f) => {
+      const k = Math.min(1, Math.sqrt(MAX_PIXELS / (W * H * f * f)));
+      const w = Math.max(1, Math.floor(W * k)), hgt = Math.max(1, Math.floor(H * k));
+      return { f, k, w, hgt, outW: w * f, outH: hgt * f };
+    };
+    const option = (f) => {
+      const p = plan(f);
+      return `<option value="${f}">${f === 1 ? `Same size (${W} × ${H}), sharpen only` : `${f}× bigger (${p.outW} × ${p.outH})${p.k < 1 ? `, reduced to ${p.w} × ${p.hgt} first` : ""}`}</option>`;
+    };
+    const mp = (n) => (n / 1e6).toFixed(1);
     desk.innerHTML = `<h2>Enhance</h2>
       <label class="check"><input type="radio" name="mode" value="ai" checked> AI upscale <span class="note">(sharpest; guesses at fine detail)</span></label>
       <label class="check"><input type="radio" name="mode" value="sharpen"> Sharpen only <span class="note">(no AI, instant)</span></label>
-      <label class="field">Make it<select name="factor">
-        <option value="2" ${fits(2) ? "" : "disabled"}>2× bigger (${W * 2} × ${H * 2})</option>
-        <option value="4" ${fits(4) ? "" : "disabled"}>4× bigger (${W * 4} × ${H * 4})</option></select>
-        ${fits(2) ? "" : `<span class="note">This picture is already big (${W} × ${H}); twice the size is more than a browser can save. Try Resize image to make it smaller first, or use it as it is.</span>`}</label>
+      <label class="field">Make it<select name="factor">${option(4)}${option(2)}${option(1)}</select>
+        ${plan(2).k < 1 ? `<span class="note big-note">This photo is already ${mp(W * H)} megapixels. A browser can save up to ${mp(MAX_PIXELS)}, so to enlarge it, it's reduced first. A photo this big has more real detail than enlarging can add: for a crisper photo at full size, choose <b>Same size</b>.</span>` : ""}</label>
       <label class="field">Save as<select name="type"><option value="image/jpeg">JPG (smaller file)</option><option value="image/png">PNG (exact)</option></select></label>
-      <button type="button" class="pill go" ${fits(2) ? "" : "disabled"}>Enhance</button>
+      <button type="button" class="pill go">Enhance</button>
       <button type="button" class="pill ghost save" hidden>Save picture</button>
       <p class="status" role="status"></p>
       <p class="honest" style="margin-top: 14px">The AI makes its best guess at detail that isn't in the picture. It's great for photos, but it can reshape small text, numbers and faces, so don't use it for receipts, IDs, documents or anything used as evidence. To make a photo of a page readable, use <a href="#/scan">Scan</a> instead. The first time, the AI model downloads (2.4 MB).</p>${privateNote()}`;
     const go = desk.querySelector(".go"), save = desk.querySelector(".save"), out = desk.querySelector(".status");
     const val = (n) => desk.querySelector(`[name=${n}]:checked`)?.value ?? desk.querySelector(`[name=${n}]`).value;
-    // small pictures, the usual case, go to 4×; bigger ones to 2× so the file stays manageable
-    desk.querySelector("[name=factor]").value = fits(4) ? "4" : "2";
+    const factorBox = desk.querySelector("[name=factor]");
+    // small pictures, the usual case, go to 4×; ones that would need reducing for that, to 2×;
+    // ones that would need reducing even for 2×, to the same size
+    factorBox.value = plan(4).k === 1 ? "4" : plan(2).k === 1 ? "2" : "1";
+    // the AI only enlarges, so "same size" goes with sharpening, and back
+    const pair = (e) => {
+      if (e?.target.name === "factor" && factorBox.value === "1") desk.querySelector("[name=mode][value=sharpen]").checked = true;
+      if (e?.target.name === "mode" && val("mode") === "ai" && factorBox.value === "1") factorBox.value = "2";
+    };
+    if (factorBox.value === "1") pair({ target: factorBox });
     let result = null;
-    desk.addEventListener("change", () => { save.hidden = true; });
+    desk.addEventListener("change", (e) => { pair(e); save.hidden = true; });
 
     const viewer = h(`<div class="compare-view" hidden>
       <div class="cv-frame"><div class="cv-pics"><canvas class="cv-before"></canvas><canvas class="cv-after"></canvas><div class="cv-line"></div></div></div>
@@ -79,26 +97,28 @@ export function mount({ main, desk, files, privateNote }) {
 
     go.addEventListener("click", () => busy(go, out, "Enhancing...", async () => {
       const factor = Number(val("factor")), mode = val("mode");
+      const p = plan(factor);
+      const source = p.k < 1 ? drawn(bitmap, p.w, p.hgt) : bitmap;
       save.hidden = true;
       const t0 = performance.now();
       let canvas;
       if (mode === "sharpen") {
-        canvas = sharpen(bitmap, factor);
+        canvas = sharpen(source, factor);
       } else {
         status(out, "Getting the AI model ready...");
         const layers = await loadWeights();
         gpu ??= GPUUpscaler.create(layers);
         if (!gpu) throw new Error("this browser or device can't run the AI upscaler (it needs WebGL2 graphics). Choose Sharpen only instead.");
-        const src = drawn(bitmap, W, H).getContext("2d").getImageData(0, 0, W, H);
+        const src = drawn(source, p.w, p.hgt).getContext("2d").getImageData(0, 0, p.w, p.hgt);
         const big = await upscaleImage(src, (p, w, hgt) => gpu.run(p, w, hgt), {
           onTile: (done, of) => { status(out, `Enhancing: ${Math.round((done / of) * 100)}%`); return new Promise((r) => setTimeout(r)); },
         });
         const four = Object.assign(document.createElement("canvas"), { width: big.width, height: big.height });
         four.getContext("2d").putImageData(new ImageData(big.data, big.width, big.height), 0, 0);
         // 2×: the model always makes 4×, so that's brought down smoothly, which also keeps it crisp
-        canvas = factor === 4 ? four : drawn(four, W * 2, H * 2);
+        canvas = factor === 4 ? four : drawn(four, p.outW, p.outH);
       }
-      // the comparison: the plain enlargement a browser would do, against the result
+      // the comparison: the original picture, enlarged the plain way a browser would, against the result
       const before = viewer.querySelector(".cv-before"), after = viewer.querySelector(".cv-after");
       for (const c of [before, after]) Object.assign(c, { width: canvas.width, height: canvas.height });
       before.getContext("2d").drawImage(drawn(bitmap, canvas.width, canvas.height), 0, 0);
@@ -115,7 +135,7 @@ export function mount({ main, desk, files, privateNote }) {
     save.addEventListener("click", () => busy(save, out, "Saving...", async () => {
       const type = val("type");
       const blob = await toBlob(type === "image/jpeg" ? drawn(result.canvas, result.canvas.width, result.canvas.height, { background: "#fff" }) : result.canvas, type, 0.92);
-      download(blob, renamed(file, `-${result.factor}x`, type === "image/png" ? "png" : "jpg"));
+      download(blob, renamed(file, result.factor === 1 ? "-sharpened" : `-${result.factor}x`, type === "image/png" ? "png" : "jpg"));
       status(out, `Saved: ${result.canvas.width} × ${result.canvas.height}, ${bytes(blob.size)}.`, "good");
     }));
   } });
