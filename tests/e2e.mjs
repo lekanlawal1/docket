@@ -609,6 +609,38 @@ await check("enhance image: sharpen only, 2×", async () => {
   expect(name === "small-2x.jpg", "named " + name);
 });
 
+await check("enhance image: a big phone photo is reduced to fit before enlarging, or sharpened at the same size", async () => {
+  const big = join(fx, "big-photo.jpg");
+  const b64 = await page.evaluate(() => {
+    const c = Object.assign(document.createElement("canvas"), { width: 3024, height: 4032 });
+    const x = c.getContext("2d");
+    const g = x.createLinearGradient(0, 0, 3024, 4032); g.addColorStop(0, "#3a6"); g.addColorStop(1, "#e94"); x.fillStyle = g; x.fillRect(0, 0, 3024, 4032);
+    x.fillStyle = "#fff"; x.font = "200px sans-serif"; x.fillText("Harbour", 400, 2000);
+    return c.toDataURL("image/jpeg", 0.8).split(",")[1];
+  });
+  await (await import("node:fs/promises")).writeFile(big, Buffer.from(b64, "base64"));
+  await open("enhance", [big]);
+  await page.waitForSelector(".desk .go:not([disabled])");
+  expect(await page.isVisible(".big-note"), "no note about the photo being big");
+  expect(await page.inputValue("[name=factor]") === "1" && await page.isChecked("[name=mode][value=sharpen]"), "a big photo should start on same size, sharpened");
+  // every enlargement fits in 16 megapixels, saying what it's reduced to
+  const options = await page.$$eval("[name=factor] option", (os) => os.map((o) => o.textContent));
+  for (const o of options.filter((t) => /bigger/.test(t))) {
+    const [w, h] = o.match(/\((\d+) × (\d+)/).slice(1).map(Number);
+    expect(w * h <= 16_000_000 && /reduced to/.test(o), "option: " + o);
+  }
+  // choosing the AI moves off "same size", which only sharpening does
+  await page.check("[name=mode][value=ai]");
+  expect(await page.inputValue("[name=factor]") === "2", "AI left on same size");
+  await page.check("[name=mode][value=sharpen]");
+  await page.selectOption("[name=factor]", "1");
+  await page.click(".desk .go");
+  await page.waitForSelector(".desk .status.good", { timeout: 120_000 });
+  const { name, data } = await save(".desk .save");
+  const size = await page.evaluate(async (b) => { const i = await createImageBitmap(new Blob([Uint8Array.from(atob(b), (c) => c.charCodeAt(0))])); return [i.width, i.height]; }, data.toString("base64"));
+  expect(name === "big-photo-sharpened.jpg" && size[0] === 3024 && size[1] === 4032, `${name} ${size}`);
+});
+
 await check("qr code", async () => {
   await open("qr");
   await page.fill("[name=text]", "https://example.com");
