@@ -31,6 +31,7 @@ export const ICONS = {
   scroll: "M6 4h11a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H7M6 4a2 2 0 0 0-2 2v1h4V6a2 2 0 0 0-2-2zM9 9h7M9 12h7M9 15h4M7 20a2 2 0 0 0 2-2V7",
   iron: "M3 18h16a2 2 0 0 0 2-2c0-5-3-8-8-8H8M8 8V6h5M3 18l2-6c.5-2 2-4 5-4M3 21h18",
   sparkle: "M10 3l1.6 4.4L16 9l-4.4 1.6L10 15l-1.6-4.4L4 9l4.4-1.6zM18 13l.9 2.1L21 16l-2.1.9L18 19l-.9-2.1L15 16l2.1-.9zM17 3v3M15.5 4.5h3",
+  ledger: "M5 4h11a3 3 0 0 1 3 3v13H8a3 3 0 0 1-3-3zM5 17a3 3 0 0 1 3-3h11M9 8h6M9 11h4",
   cropmarks: "M7 3v14h14M3 7h14v14",
   pearl: "M3 5h18v14H3zM3 15c2-2 4-2 6 0s4 2 6 0 4-2 6 0M15.5 9.5a1.5 1.5 0 1 0 3 0a1.5 1.5 0 1 0-3 0",
   marlinspike: "M14.5 3.5l6 6-2 2-6-6zM12.5 7.5 4 16l-1 5 5-1 8.5-8.5M6 15l3 3",
@@ -41,6 +42,8 @@ export const ICONS = {
   map: "M3 6l6-2 6 2 6-2v14l-6 2-6-2-6 2zM9 4v14M15 6v14",
   // small ones for buttons
   up: "M5 14l7-7 7 7",
+  undo: "M9 14L4 9l5-5M4 9h10a6 6 0 0 1 0 12h-3",
+  redo: "M15 14l5-5-5-5M20 9H10a6 6 0 0 0 0 12h3",
   down: "M5 10l7 7 7-7",
   left: "M14 5l-7 7 7 7",
   right: "M10 5l7 7-7 7",

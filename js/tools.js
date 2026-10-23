@@ -3,6 +3,7 @@
 
 export const PIERS = [
   { no: "01", name: "Organise", blurb: "Put pages in order", tint: "--tint-1", tools: [
+    { id: "workspace", name: "Workspace", icon: "ledger", what: "Open one PDF and make every change to it, with undo." },
     { id: "merge", name: "Merge", icon: "knot", what: "Join several PDFs into one, in the order you choose." },
     { id: "split", name: "Split", icon: "crab", what: "Break a PDF apart by page ranges or every few pages." },
     { id: "organise", name: "Organise pages", icon: "wheel", what: "Reorder, rotate and delete pages." },

@@ -367,3 +367,28 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .next-chip:hover { border-color: var(--focus); }
 .next-chip.more { background: transparent; font-weight: 500; }
 .next-chip svg.art { stroke: currentColor; }
+
+/* Workspace */
+.ws-banner { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 0 0 16px; padding: 12px 16px; border-radius: 14px; background: var(--panel); border: 1px solid var(--focus); font-size: 14px; }
+.ws-banner span { flex: 1; min-width: 200px; }
+.ws-banner svg.art { stroke: var(--focus); flex: none; }
+.ws-bar { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 16px; padding: 12px 14px; border-radius: 14px; background: var(--card); border: 1px solid var(--card-line); }
+.ws-name { display: flex; flex-direction: column; min-width: 0; }
+.ws-name b { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-name small { color: var(--muted); font-size: 13px; }
+.ws-actions { display: flex; gap: 6px; }
+.ws-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 14px; }
+.ws-page { margin: 0; text-align: center; }
+.ws-page canvas { width: 100%; height: auto; display: block; background: #fff; border-radius: 4px; box-shadow: 0 1px 6px rgba(0,0,0,.18); }
+.ws-page figcaption { margin-top: 6px; font-size: 13px; color: var(--muted); }
+.ws-group { margin-top: 10px; }
+.ws-group-name { font-size: 12px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); margin-bottom: 6px; }
+.ws-history { list-style: none; margin: 8px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.ws-history button { width: 100%; display: flex; align-items: center; gap: 10px; padding: 8px 10px; border-radius: 10px; border: 1px solid transparent; background: transparent; color: inherit; font: inherit; font-size: 14px; text-align: left; cursor: pointer; }
+.ws-history button:hover { background: var(--panel); }
+.ws-history button.on { border-color: var(--focus); background: var(--panel); font-weight: 600; }
+.ws-history button.undone { opacity: .5; }
+.ws-history .n { width: 22px; height: 22px; flex: none; display: grid; place-items: center; border-radius: 50%; background: var(--panel); font-size: 12px; }
+.ws-history .what { flex: 1; }
+.ws-history small { color: var(--muted); }
+.next-chip.ws-chip { border-color: var(--focus); }

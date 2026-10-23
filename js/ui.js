@@ -43,9 +43,19 @@ export function onResult(fn) {
   return () => resultListeners.delete(fn);
 }
 
+// A tool opened from the Workspace hands its PDF back there instead of downloading it.
+let capture = null;
+export function captureDownloads(fn) { capture = fn; }
+
 export function download(data, name, type = "application/pdf") {
   const blob = data instanceof Blob ? data : new Blob([data], { type });
   const file = new File([blob], name, { type: blob.type || type });
+  if (capture && (/pdf/i.test(file.type) || /\.pdf$/i.test(name))) {
+    const fn = capture;
+    capture = null;
+    fn(file);
+    return;
+  }
   resultListeners.forEach((fn) => fn(file));
   const url = URL.createObjectURL(blob);
   const a = Object.assign(document.createElement("a"), { href: url, download: name });

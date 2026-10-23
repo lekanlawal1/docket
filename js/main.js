@@ -3,7 +3,8 @@
 
 import { PIERS, findTool } from "./tools.js";
 import { svg } from "./icons.js";
-import { h, esc, dock, privateNote, onResult } from "./ui.js";
+import { h, esc, dock, privateNote, onResult, captureDownloads } from "./ui.js";
+import { ws, begin, push } from "./workspace.js";
 
 const app = document.getElementById("app");
 
@@ -207,19 +208,21 @@ let stopResults = null;
 
 function keepWorking(desk, currentId, file) {
   desk.querySelector(".next-steps")?.remove();
+  if (currentId === "workspace") return;
   const kind = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? "pdf" : /^image\//.test(file.type) ? "image" : null;
   if (!kind) return;
   const tools = NEXT[kind].filter((id) => id !== currentId).map(findTool).filter((t) => t && !t.soon);
   const chip = (t, hidden) => `<button type="button" class="next-chip" data-id="${t.id}" ${hidden ? "hidden" : ""}>${svg(t.icon, { size: 18 })}<span>${esc(t.name)}</span></button>`;
   const el = h(`<div class="next-steps" role="region" aria-label="Keep working on this file">
     <p class="next-title">Keep working on <b>${esc(file.name)}</b></p>
-    <div class="next-chips">${tools.map((t, i) => chip(t, i >= SHOWN)).join("")}
+    <div class="next-chips">${kind === "pdf" ? `<button type="button" class="next-chip ws-chip" data-ws>${svg("ledger", { size: 18 })}<span>Open in Workspace</span></button>` : ""}${tools.map((t, i) => chip(t, i >= SHOWN)).join("")}
       ${tools.length > SHOWN ? `<button type="button" class="next-chip more">More tools</button>` : ""}</div>
   </div>`);
   el.addEventListener("click", (e) => {
     const btn = e.target.closest(".next-chip");
     if (!btn) return;
     if (btn.classList.contains("more")) { el.querySelectorAll(".next-chip[hidden]").forEach((b) => (b.hidden = false)); btn.remove(); return; }
+    if (btn.hasAttribute("data-ws")) { begin(file, `From ${findTool(currentId)?.name || "a tool"}`); location.hash = "#/workspace"; return; }
     waiting = [file];
     location.hash = "#/" + btn.dataset.id;
   });
@@ -231,6 +234,10 @@ function keepWorking(desk, currentId, file) {
 async function toolPage(id) {
   stopResults?.();
   stopResults = null;
+  captureDownloads(null);
+  // a tool opened from the Workspace and left without saving: nothing comes back
+  const fromWorkspace = ws.pending === id;
+  if (!fromWorkspace) ws.pending = null;
   const tool = findTool(id);
   if (!tool) return home();
   document.title = `${tool.name} | Docket`;
@@ -253,6 +260,16 @@ async function toolPage(id) {
   try {
     const mod = await import(`./tools/${id}.js`);
     if (mod.intro) page.querySelector(".tool-intro").textContent = mod.intro;
+    if (fromWorkspace) {
+      page.querySelector(".workbench").before(h(`<div class="ws-banner" role="note">${svg("ledger", { size: 18 })}
+        <span>Editing <b>${esc(ws.name)}</b> in your Workspace. When you save, the result goes back to the Workspace, not your downloads.</span>
+        <a href="#/workspace">Back without changes</a></div>`));
+      captureDownloads((file) => {
+        push(tool.name, file);
+        ws.pending = null;
+        location.hash = "#/workspace";
+      });
+    }
     mod.mount({ main, desk, files: takeWaiting(), privateNote });
     stopResults = onResult((file) => keepWorking(desk, id, file));
   } catch (err) {
