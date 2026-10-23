@@ -6,8 +6,8 @@
 // cache first.
 
 // files:start (written by scripts/offline-list.mjs)
-const VERSION = "182dfc4c9e5e";
-const VENDOR_VERSION = "b63264b8a26c";
+const VERSION = "d8b5723c77d7";
+const VENDOR_VERSION = "95f9fc1ff501";
 const CORE = [
   "assets/apple-touch-icon.png",
   "assets/favicon.svg",
@@ -42,6 +42,7 @@ const CORE = [
   "js/tools/compress.js",
   "js/tools/convert-images.js",
   "js/tools/crop.js",
+  "js/tools/enhance.js",
   "js/tools/extract-images.js",
   "js/tools/extract.js",
   "js/tools/fill-form.js",
@@ -72,6 +73,7 @@ const CORE = [
   "js/tools/summary.js",
   "js/tools/watermark.js",
   "js/ui.js",
+  "js/upscale.js",
   "js/xlsx.js",
   "js/zip.js",
   "manifest.webmanifest",
@@ -81,6 +83,7 @@ const CORE = [
   "vendor/qrcode/qrcode.js"
 ];
 const EXTRA = [
+  "vendor/esrgan/realesr-general-x4v3.bin",
   "vendor/heic-to/heic-to.js",
   "vendor/qpdf/qpdf.js",
   "vendor/qpdf/qpdf.wasm",
@@ -91,7 +94,7 @@ const EXTRA = [
   "vendor/tesseract/tesseract.esm.min.js",
   "vendor/tesseract/worker.min.js"
 ];
-const EXTRA_BYTES = 16101153;
+const EXTRA_BYTES = 18527745;
 // files:end
 
 const APP = `docket-app-${VERSION}`, LIBS = `docket-libs-${VENDOR_VERSION}`, FONTS = "docket-fonts";

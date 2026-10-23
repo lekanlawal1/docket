@@ -352,3 +352,11 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .offline-text p { margin: 6px 0; }
 .offline-actions { display: flex; flex-direction: column; gap: 10px; align-items: stretch; }
 @media (max-width: 640px) { .offline { padding: 22px; } .offline-actions { width: 100%; } }
+.compare-view { margin-top: 16px; }
+.cv-frame { max-height: 480px; overflow: auto; border-radius: 10px; border: 1px solid var(--card-line); background: var(--panel); }
+.cv-pics { position: relative; width: max-content; margin: 0 auto; --split: 50%; }
+.cv-pics canvas { display: block; }
+.cv-after { position: absolute; inset: 0; clip-path: inset(0 0 0 var(--split)); }
+.cv-line { position: absolute; top: 0; bottom: 0; left: var(--split); width: 2px; margin-left: -1px; background: #fff; box-shadow: 0 0 0 1px rgba(0,0,0,.35); pointer-events: none; }
+.cv-slider { display: flex; align-items: center; gap: 10px; margin: 12px 0 4px; font-size: 14px; color: var(--muted); }
+.cv-slider input { flex: 1; }

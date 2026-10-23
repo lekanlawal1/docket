@@ -8,7 +8,7 @@ import { makeFixtures } from "./fixtures.mjs";
 
 const { chromium } = await import(process.env.PW || "playwright");
 const root = new URL("..", import.meta.url).pathname;
-const TYPES = { ".png": "image/png", ".webmanifest": "application/manifest+json", ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm", ".gz": "application/gzip" };
+const TYPES = { ".bin": "application/octet-stream", ".png": "image/png", ".webmanifest": "application/manifest+json", ".html": "text/html", ".js": "text/javascript", ".mjs": "text/javascript", ".css": "text/css", ".svg": "image/svg+xml", ".wasm": "application/wasm", ".gz": "application/gzip" };
 const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path.endsWith("/")) path += "index.html";
@@ -28,6 +28,8 @@ const browser = await chromium.launch({
   ...(process.env.CHROME && { executablePath: process.env.CHROME }),
   // behind a proxy, a deployed copy can only be reached through it
   ...(process.env.BASE && process.env.HTTPS_PROXY && { proxy: { server: process.env.HTTPS_PROXY } }),
+  // machines without a graphics chip still get WebGL2, drawn in software (slowly), for Enhance image
+  args: ["--enable-unsafe-swiftshader"],
 });
 // service workers are tested on their own at the end; elsewhere they would get between the tests and the files
 const page = await browser.newPage({ serviceWorkers: "block", acceptDownloads: true, ignoreHTTPSErrors: !!process.env.CHROME, viewport: { width: 1280, height: 900 } });
@@ -547,6 +549,64 @@ await check("convert images: a HEIC and a PNG become JPGs in a zip; one picture 
   await page.selectOption("[name=type]", "image/webp");
   const one = await save();
   expect(one.name.endsWith(".webp") && one.data.slice(8, 12).toString() === "WEBP", "single file should be a WebP: " + one.name);
+});
+
+// a sharp picture (part of the home page), and the same at a quarter of the size
+const shrunk = async (n) => {
+  const b64 = await page.evaluate(async ({ b64, n }) => {
+    const bmp = await createImageBitmap(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))], { type: "image/png" }));
+    const c = Object.assign(document.createElement("canvas"), { width: 64 * n, height: 48 * n });
+    const ctx = c.getContext("2d"); ctx.imageSmoothingQuality = "high";
+    ctx.drawImage(bmp, 140, 150, 256, 192, 0, 0, c.width, c.height);
+    return c.toDataURL("image/png").split(",")[1];
+  }, { b64: (await readFile(png)).toString("base64"), n });
+  return Buffer.from(b64, "base64");
+};
+// how close a picture is to the original (PSNR, higher is closer) and how crisp its edges are
+const judge = (pic, truth) => page.evaluate(async ({ a, t }) => {
+  const px = async (b64) => { const bmp = await createImageBitmap(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))])); const c = Object.assign(document.createElement("canvas"), { width: 256, height: 192 }); const x = c.getContext("2d"); x.drawImage(bmp, 0, 0, 256, 192); return x.getImageData(0, 0, 256, 192).data; };
+  const A = await px(a), T = await px(t);
+  let se = 0, edge = 0;
+  for (let i = 0; i < A.length; i += 4) for (let k = 0; k < 3; k++) se += (A[i + k] - T[i + k]) ** 2;
+  for (let i = 4; i < A.length; i += 4) edge += Math.abs(A[i + 1] - A[i - 3]);
+  return { psnr: 10 * Math.log10(255 ** 2 / (se / (256 * 192 * 3))), edge: edge / (256 * 192) };
+}, { a: pic.toString("base64"), t: truth.toString("base64") });
+
+await check("enhance image: the AI makes a quarter-size picture 4× bigger, crisper than plain enlarging, and close to the original", async () => {
+  const small = join(fx, "small.png");
+  await (await import("node:fs/promises")).writeFile(small, await shrunk(1));
+  const truth = await shrunk(4);
+  await open("enhance", [small]);
+  await page.waitForSelector(".desk .go");
+  await page.selectOption("[name=factor]", "4");
+  await page.selectOption("[name=type]", "image/png");
+  await page.click(".desk .go");
+  await page.waitForSelector(".desk .status.good", { timeout: 240_000 });
+  expect(await page.isVisible(".compare-view"), "no before and after");
+  const { name, data } = await save(".desk .save");
+  expect(name === "small-4x.png", "named " + name);
+  const size = await page.evaluate(async (b64) => { const b = await createImageBitmap(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))])); return [b.width, b.height]; }, data.toString("base64"));
+  expect(size[0] === 256 && size[1] === 192, "size " + size);
+  // the plain enlargement a browser does, as the bar to beat
+  const plainB64 = await page.evaluate(async (b64) => {
+    const bmp = await createImageBitmap(new Blob([Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))]));
+    const c = Object.assign(document.createElement("canvas"), { width: 256, height: 192 }); const x = c.getContext("2d"); x.imageSmoothingQuality = "high"; x.drawImage(bmp, 0, 0, 256, 192);
+    return c.toDataURL("image/png").split(",")[1];
+  }, (await readFile(small)).toString("base64"));
+  const ai = await judge(data, truth), plain = await judge(Buffer.from(plainB64, "base64"), truth);
+  expect(ai.edge > plain.edge * 1.3, `not crisper: ${ai.edge.toFixed(2)} vs ${plain.edge.toFixed(2)}`);
+  expect(ai.psnr > plain.psnr - 1, `strays from the original: ${ai.psnr.toFixed(1)} dB vs ${plain.psnr.toFixed(1)} dB`);
+});
+
+await check("enhance image: sharpen only, 2×", async () => {
+  await open("enhance", [join(fx, "small.png")]);
+  await page.waitForSelector(".desk .go");
+  await page.check("[name=mode][value=sharpen]");
+  await page.selectOption("[name=factor]", "2");
+  await page.click(".desk .go");
+  await page.waitForSelector(".desk .status.good");
+  const { name } = await save(".desk .save");
+  expect(name === "small-2x.jpg", "named " + name);
 });
 
 await check("qr code", async () => {
