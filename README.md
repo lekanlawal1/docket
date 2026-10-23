@@ -18,7 +18,7 @@ Most free PDF sites upload your file to their server to do something your own co
 | Protect | Redact, Password, Clean for sharing |
 | Shrink and fix | Compress, Make searchable, Repair PDF, Grayscale |
 | Read | Compare PDFs, Summary, Find dates and amounts |
-| Images and makers | Convert images, Resize image, Compress image, QR code, Lined paper |
+| Images and makers | Convert images, Enhance image, Resize image, Compress image, QR code, Lined paper |
 
 ## Things worth knowing
 

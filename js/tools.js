@@ -47,6 +47,7 @@ export const PIERS = [
   ] },
   { no: "07", name: "Images and makers", blurb: "The small jobs", tint: "--tint-7", tools: [
     { id: "convert-images", name: "Convert images", icon: "lantern", what: "HEIC, WebP or PNG into JPG, PNG or WebP, in batches." },
+    { id: "enhance", name: "Enhance image", icon: "sparkle", what: "Make a small or soft picture bigger and sharper." },
     { id: "resize-image", name: "Resize image", icon: "star", what: "By pixels, percent, or presets like a passport photo." },
     { id: "compress-image", name: "Compress image", icon: "fish", what: "Under a size limit, like 200 KB for a job portal." },
     { id: "qr", name: "QR code", icon: "flag", what: "For a link, Wi-Fi network or contact card." },
