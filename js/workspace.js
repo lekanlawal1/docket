@@ -82,6 +82,19 @@ export async function resume(id) {
   return true;
 }
 
+// Takes in a project from a .docket file: a new project here, kept on the device if keeping is on.
+export async function adopt({ name, steps, at }) {
+  ws.id = newId();
+  ws.name = name;
+  ws.steps = steps.slice(-store.KEEP_STEPS);
+  ws.first = 0;
+  ws.at = Math.max(0, Math.min(ws.steps.length - 1, at - (steps.length - ws.steps.length)));
+  ws.pending = null;
+  ws.saved = false;
+  ws.saveError = "";
+  if (store.keeping()) await keepThis();
+}
+
 // Stops keeping this document on the device (the open copy stays until the tab closes).
 export async function forgetThis() {
   if (ws.id) await store.forget(ws.id).catch(() => {});

@@ -26,6 +26,7 @@ export const takeWaiting = () => { const f = waiting; waiting = []; return f; };
 export const handOff = (files) => { waiting = files; };
 
 function suggestions(files) {
+  if (files.some((f) => /\.docket$/i.test(f.name))) return ["workspace"];
   const pdfs = files.filter((f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name)).length;
   const images = files.filter((f) => /^image\//.test(f.type) || /\.(heic|heif)$/i.test(f.name)).length;
   if (pdfs === 2) return ["compare", "merge", "compress"];
@@ -68,7 +69,7 @@ function home() {
   </section>`);
   const suggest = hero.querySelector(".suggest");
   hero.querySelector(".dock-spot").append(dock({
-    multiple: true, accept: ".pdf,image/*,.heic,.heif",
+    multiple: true, accept: ".pdf,image/*,.heic,.heif,.docket",
     hint: "PDFs or images. Docket suggests what you can do with them.",
     onFiles(files) {
       waiting = files;

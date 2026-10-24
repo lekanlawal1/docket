@@ -3,7 +3,8 @@ import { svg } from "../icons.js";
 import { readBytes, openForView, openForEdit, lib } from "../pdf.js";
 import { findTool } from "../tools.js";
 import { handOff } from "../main.js";
-import { ws, current, active, begin, canUndo, canRedo, undo, redo, jump, clear, resume, rename, forgetThis, keepThis } from "../workspace.js";
+import { ws, current, active, begin, canUndo, canRedo, undo, redo, jump, clear, resume, rename, forgetThis, keepThis, adopt } from "../workspace.js";
+import { toProjectFile, fromProjectFile, EXT } from "../projectfile.js";
 import * as store from "../projects.js";
 
 export const intro = "Open one PDF and make all your changes to it here: organise, sign, add text, compress, protect and more. Every step is kept, so you can undo, and you download once at the end.";
@@ -17,6 +18,7 @@ const GROUPS = [
 ];
 
 const isPdf = (f) => /pdf$/i.test(f.type) || /\.pdf$/i.test(f.name);
+const isProject = (f) => f.name.toLowerCase().endsWith(EXT);
 let savedAt = -1;   // the step last downloaded, to warn before losing unsaved work
 
 // only work that isn't being kept on the device needs a warning before the tab closes
@@ -37,7 +39,7 @@ const ago = (t) => {
 export function mount({ main, desk, files, privateNote }) {
   const start = async () => {
     main.innerHTML = "";
-    main.append(dock({ accept: ".pdf,application/pdf", multiple: true, title: "Drop the PDF you want to work on", hint: "Several? They're joined into one first, in the order you choose them.", onFiles: open }));
+    main.append(dock({ accept: `.pdf,application/pdf,${EXT}`, multiple: true, title: "Drop the PDF you want to work on", hint: `Several? They're joined into one first. A Docket project file (${EXT}) opens with all its steps.`, onFiles: open }));
     desk.innerHTML = `<h2>Workspace</h2>
       <p>Open a PDF, then pick changes one after another. Each one opens the right tool with your document already in it, and brings the result back here. Undo any step, or go back to an earlier one.</p>
       ${keepSwitch()}
@@ -94,6 +96,13 @@ export function mount({ main, desk, files, privateNote }) {
   }
 
   async function open(newFiles) {
+    const project = newFiles.find(isProject);
+    if (project) {
+      try { await adopt(await fromProjectFile(await readBytes(project))); }
+      catch (err) { await start(); main.prepend(h(`<p class="status bad">${esc(err.message)}</p>`)); return; }
+      savedAt = ws.at;
+      return show();
+    }
     const pdfs = newFiles.filter(isPdf);
     if (!pdfs.length) { start(); main.append(h(`<p class="status bad">That isn't a PDF.</p>`)); return; }
     if (pdfs.length === 1) { await begin(pdfs[0]); savedAt = -1; return show(); }
@@ -134,6 +143,8 @@ export function mount({ main, desk, files, privateNote }) {
         <span class="n">${i + 1}</span><span class="what">${esc(s.label)}</span><small>${bytes(s.file.size)}</small></button></li>`).join("")}</ol>
       <label class="field" style="margin-top: 18px">File name<input type="text" name="saveName" value="${esc(ws.name)}"></label>
       <button type="button" class="pill go">Download</button>
+      <button type="button" class="pill ghost project-file" style="margin-top: 8px">Save project file (${EXT})</button>
+      <p class="note">The project file holds every step, so you can carry on later on any device: drop it on the Workspace.</p>
       <p class="status" role="status"></p>
       <div class="ws-keep">
         <p class="ws-saved ${ws.saveError ? "bad" : ""}">${ws.saveError ? esc(ws.saveError) : ws.saved ? `${svg("check", { size: 16 })} Saved on this device, step by step` : "Not kept: closing the tab clears it"}</p>
@@ -155,6 +166,13 @@ export function mount({ main, desk, files, privateNote }) {
       download(current(), fileName());
       savedAt = ws.at;
       status(out, `Downloaded ${fileName()}, ${bytes(current().size)}.`, "good");
+    });
+    desk.querySelector(".project-file").addEventListener("click", async () => {
+      const data = await toProjectFile({ name: ws.name, steps: ws.steps, at: ws.at });
+      const name = ws.name.replace(/\.pdf$/i, "") + EXT;
+      download(new Blob([data], { type: "application/octet-stream" }), name);
+      savedAt = ws.at;
+      status(out, `Saved ${name}: ${plural(ws.steps.length, "step")}, ${bytes(data.length)}.`, "good");
     });
     const closeBtn = desk.querySelector(".close-doc");
     const closeLabel = () => (closeBtn.textContent = ws.saved ? "Close (it stays saved)" : "Close");
@@ -186,7 +204,7 @@ export function mount({ main, desk, files, privateNote }) {
     }
   }
 
-  const first = files.filter(isPdf);
+  const first = files.filter((f) => isPdf(f) || isProject(f));
   if (first.length) open(first);
   else if (active()) show();
   else start();

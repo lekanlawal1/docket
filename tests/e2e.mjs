@@ -639,6 +639,44 @@ await check("workspace autosave: the document and its steps survive a reload, an
   expect(left.join() === "kept.pdf", "after a month: " + left.join());
 });
 
+await check("workspace project file: save every step as one file, open it later with its history", async () => {
+  await page.goto(base + "#/workspace");
+  await page.evaluate(async () => { const s = await import(new URL("js/projects.js", location.href).href); await s.forgetAll(); s.setKeeping(true); });
+  await open("workspace", [lease]);
+  await page.waitForSelector(".ws-page");
+  await page.click('[data-tool="page-numbers"]');
+  await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".main .result"));
+  await page.click(".desk .go");
+  await page.waitForFunction(() => location.hash === "#/workspace" && document.querySelectorAll(".ws-history li").length === 2);
+  await page.click('[data-act="undo"]');
+  await page.waitForSelector(".ws-history button.undone");
+  const { name, data } = await save(".desk .project-file");
+  expect(name === "lease.docket", "named " + name);
+  const projectPath = join(fx, name);
+  await (await import("node:fs/promises")).writeFile(projectPath, data);
+
+  // as if on another device: nothing saved, then the project file dropped on the home page
+  await page.evaluate(async () => (await import(new URL("js/projects.js", location.href).href)).forgetAll());
+  await page.goto(base);
+  await page.reload();
+  await page.locator(".dock-spot input").setInputFiles([projectPath]);
+  await page.click('.suggest .berth[href="#/workspace"]');
+  await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 2 && document.querySelector(".ws-page"));
+  expect((await page.locator(".ws-history button.on .what").innerText()) === "Opened", "didn't come back at the step that was showing");
+  await page.click('[data-act="redo"]');
+  await page.waitForFunction(() => document.querySelector(".ws-history button.on .what")?.textContent === "Page numbers");
+  const out = await readPdf((await save(".desk .go")).data);
+  expect(out.texts[out.pages - 1].includes(String(out.pages)), "the step from the project file lost its page numbers");
+
+  // and something that isn't a project file is turned away politely
+  const fake = join(fx, "fake.docket");
+  await (await import("node:fs/promises")).writeFile(fake, "not a zip at all");
+  await page.click(".close-doc");
+  await page.locator(".main .dock input").first().setInputFiles([fake]);
+  await page.waitForSelector(".main .status.bad");
+  expect(/isn't a Docket project file/.test(await page.locator(".main .status.bad").innerText()), "unclear error for a bad project file");
+});
+
 await check("workspace: a tool's result can be opened in the Workspace", async () => {
   await open("merge", [lease, second]);
   await page.waitForSelector(".desk .go:not([disabled])");

@@ -77,3 +77,40 @@ export function zip(files) {
   for (const b of parts) { out.set(b, at); at += b.length; }
   return out;
 }
+
+// Reads a ZIP (ours, or one re-zipped by another app) into [{ name, data }]. Stored and
+// deflated entries are supported; each stored entry's checksum is verified, so a damaged
+// file is caught rather than half-read.
+export async function unzip(bytes) {
+  const view = new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength);
+  let end = -1;
+  for (let i = bytes.length - 22; i >= Math.max(0, bytes.length - 65_557); i--) if (view.getUint32(i, true) === 0x06054b50) { end = i; break; }
+  if (end < 0) throw new Error("this isn't a ZIP file, or it's damaged");
+  const count = view.getUint16(end + 10, true);
+  let at = view.getUint32(end + 16, true);
+  const dec = new TextDecoder();
+  const out = [];
+  for (let k = 0; k < count; k++) {
+    if (view.getUint32(at, true) !== 0x02014b50) throw new Error("the file's index is damaged");
+    const method = view.getUint16(at + 10, true), crc = view.getUint32(at + 16, true);
+    const size = view.getUint32(at + 20, true);
+    const nameLen = view.getUint16(at + 28, true), extraLen = view.getUint16(at + 30, true), commentLen = view.getUint16(at + 32, true);
+    const offset = view.getUint32(at + 42, true);
+    const name = dec.decode(bytes.subarray(at + 46, at + 46 + nameLen));
+    at += 46 + nameLen + extraLen + commentLen;
+    if (view.getUint32(offset, true) !== 0x04034b50) throw new Error(`${name} is damaged`);
+    const start = offset + 30 + view.getUint16(offset + 26, true) + view.getUint16(offset + 28, true);
+    const raw = bytes.subarray(start, start + size);
+    let data;
+    if (method === 0) {
+      data = raw;
+      if (crc32(data) !== crc) throw new Error(`${name} is damaged (its checksum doesn't match)`);
+    } else if (method === 8) {
+      data = new Uint8Array(await new Response(new Blob([raw]).stream().pipeThrough(new DecompressionStream("deflate-raw"))).arrayBuffer());
+    } else {
+      throw new Error(`${name} uses a kind of compression this can't read`);
+    }
+    if (!name.endsWith("/")) out.push({ name, data });
+  }
+  return out;
+}
