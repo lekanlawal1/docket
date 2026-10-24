@@ -84,7 +84,7 @@ js/ranges.js, zip.js, text.js, layout.js, docx.js   pure logic, unit tested in N
 
 ## Credits
 
-Built by [Lekan Lawal](https://lekanlawal1.github.io/portfolio-site/) with help from Claude (Anthropic) as a coding assistant.
+Built by [Lekan Lawal](https://lekanlawal1.github.io/portfolio-site/).
 
 ## Licence
 
