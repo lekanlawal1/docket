@@ -6,7 +6,7 @@
 // cache first.
 
 // files:start (written by scripts/offline-list.mjs)
-const VERSION = "95aa1ed6693d";
+const VERSION = "2350d6d9b648";
 const VENDOR_VERSION = "95f9fc1ff501";
 const CORE = [
   "assets/apple-touch-icon.png",
@@ -20,6 +20,7 @@ const CORE = [
   "js/diff.js",
   "js/docx.js",
   "js/flatten.js",
+  "js/formfind.js",
   "js/icons.js",
   "js/images.js",
   "js/layout.js",
@@ -47,6 +48,7 @@ const CORE = [
   "js/tools/enhance.js",
   "js/tools/extract-images.js",
   "js/tools/extract.js",
+  "js/tools/fill-flat.js",
   "js/tools/fill-form.js",
   "js/tools/find.js",
   "js/tools/flatten.js",

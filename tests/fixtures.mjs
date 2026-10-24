@@ -107,6 +107,35 @@ export async function makeFixtures(dir) {
   dd.addToPage(fp, { x: 50, y: 600, width: 150, height: 24 });
   writeFileSync(join(dir, "form.pdf"), await form.save());
 
+  // a flat form, as printed or scanned: labels, lines to write on and tick boxes, but no form
+  // fields. Page 1 also has a page-wide rule and a table, which aren't places to write.
+  const flat = await PDFDocument.create();
+  const ff = await flat.embedFont(StandardFonts.Helvetica), fb = await flat.embedFont(StandardFonts.HelveticaBold);
+  const line = (pg, x0, x1, y) => pg.drawLine({ start: { x: x0, y }, end: { x: x1, y }, thickness: 0.8 });
+  const box = (pg, x, y) => pg.drawRectangle({ x, y, width: 10, height: 10, borderWidth: 0.8, borderColor: rgb(0, 0, 0) });
+  const fl1 = flat.addPage([612, 792]);
+  fl1.drawText("Membership application", { x: 50, y: 740, size: 18, font: fb });
+  fl1.drawLine({ start: { x: 20, y: 728 }, end: { x: 592, y: 728 }, thickness: 1 });
+  fl1.drawText("Full name", { x: 50, y: 690, size: 11, font: ff });
+  line(fl1, 110, 400, 688);
+  fl1.drawText("Email", { x: 50, y: 650, size: 11, font: ff });
+  line(fl1, 90, 400, 648);
+  fl1.drawText("Over 18?", { x: 50, y: 610, size: 11, font: ff });
+  fl1.drawText("Yes", { x: 110, y: 610, size: 11, font: ff });
+  box(fl1, 132, 609);
+  fl1.drawText("No", { x: 160, y: 610, size: 11, font: ff });
+  box(fl1, 178, 609);
+  // a table: rules with sides aren't blanks
+  for (const y of [560, 540, 520]) fl1.drawLine({ start: { x: 50, y }, end: { x: 400, y }, thickness: 0.8 });
+  for (const x of [50, 400]) fl1.drawLine({ start: { x, y: 520 }, end: { x, y: 560 }, thickness: 0.8 });
+  fl1.drawText("Fee  $20", { x: 56, y: 545, size: 10, font: ff });
+  const fl2 = flat.addPage([612, 792]);
+  fl2.drawText("Signature", { x: 50, y: 700, size: 11, font: ff });
+  line(fl2, 115, 330, 698);
+  fl2.drawText("I agree to the rules", { x: 50, y: 660, size: 11, font: ff });
+  box(fl2, 165, 659);
+  writeFileSync(join(dir, "flat-form.pdf"), await flat.save());
+
   // a reviewed document: a filled field, and the marks PDF apps leave behind, each with its
   // own stored look (one without the usual XObject labels, one scaled by its own matrix)
   const marked = await PDFDocument.create();

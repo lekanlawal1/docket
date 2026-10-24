@@ -1,7 +1,8 @@
 import { onePdf, h, esc, download, renamed, plural, busy, status } from "../ui.js";
 import { readBytes, openForEdit, lib } from "../pdf.js";
+import { flatForm } from "./fill-flat.js";
 
-export const intro = "If the PDF has fillable boxes, they're listed here to type into. Then save, or lock the answers in.";
+export const intro = "Type into a form and save it. Forms with fillable boxes are listed to fill in; a scan, photo or flat PDF works too: Docket finds the blanks and tick boxes on the page for you.";
 
 export function mount({ main, desk, files, privateNote }) {
   desk.innerHTML = `<h2>Save</h2><p>Load a PDF to begin.</p>`;
@@ -13,8 +14,9 @@ export function mount({ main, desk, files, privateNote }) {
     catch (err) { main.append(h(`<p class="status bad">${esc(err.message)}</p>`)); return; }
     const fields = doc.getForm().getFields();
     if (!fields.length) {
-      main.append(h(`<p>This PDF has no fillable fields. To write on it anyway, use <a href="#/sign">Sign</a> to place a signature, or print it.</p>`));
-      desk.innerHTML = `<h2>Save</h2><p>Nothing to fill in here.</p>`;
+      // a flat form: find where to write on the page itself
+      try { await flatForm({ main, desk, file, bytesIn, privateNote }); }
+      catch (err) { main.append(h(`<p class="status bad">${esc(err.message)}</p>`)); }
       return;
     }
 

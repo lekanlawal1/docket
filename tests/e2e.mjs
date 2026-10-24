@@ -307,6 +307,56 @@ const colourAt = (data, n, spots) => page.evaluate(async ({ b64, n, spots }) => 
   return spots.map(([x, y]) => { const [u, v] = viewport.convertToViewportPoint(x, y); return [...ctx.getImageData(Math.round(u), Math.round(v), 1, 1).data.slice(0, 3)]; });
 }, { b64: data.toString("base64"), n, spots });
 
+await check("fill a flat form: finds the blanks and tick boxes, writes answers in place, or makes it fillable", async () => {
+  await open("fill-form", [join(fx, "flat-form.pdf")]);
+  await page.waitForSelector(".flat-field");
+  const summary = await page.textContent(".desk .summary-line");
+  // page 1: two lines and two boxes (not the title rule or the table); page 2: one of each
+  expect(/3 blanks and 3 tick boxes on 2 pages/.test(summary), summary);
+  expect(await page.locator(".flat-field.text").count() === 2 && await page.locator(".flat-field.check").count() === 2, "page 1 should show 2 blanks and 2 boxes");
+  await page.locator(".flat-field.text input").first().fill("Sam Rowe");
+  await page.locator(".flat-field .tick").first().click();
+  // one added by hand, below the table
+  await page.click("[data-mode=text]");
+  const canvas = page.locator(".flat-stage canvas");
+  const size = await canvas.boundingBox();
+  await canvas.click({ position: { x: size.width * 0.1, y: size.height * 0.4 } });
+  await page.keyboard.type("Added by hand");
+  // a wrong one removed: the Email line
+  await page.locator(".flat-field.text").nth(1).hover();
+  await page.locator(".flat-field.text").nth(1).locator(".x").click();
+  expect(await page.locator(".flat-field.text").count() === 2, "removing a blank didn't remove it");
+  await page.click("[aria-label='Next page']");
+  await page.locator(".flat-field.text input").first().fill("S. Rowe");
+  await page.locator(".flat-field .tick").first().click();
+
+  const { data, name } = await save();
+  expect(name === "flat-form-filled.pdf", name);
+  // each answer sits on its line, just after its label
+  const at = await page.evaluate(async (b64) => {
+    const { openForView } = await import(new URL("js/pdf.js", location.href).href);
+    const doc = await openForView(Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)));
+    const out = {};
+    for (const n of [1, 2]) for (const it of (await (await doc.getPage(n)).getTextContent()).items) out[it.str] = [n, Math.round(it.transform[4]), Math.round(it.transform[5])];
+    return out;
+  }, data.toString("base64"));
+  const [n1, x1, y1] = at["Sam Rowe"] || [], [n2, x2, y2] = at["S. Rowe"] || [];
+  expect(n1 === 1 && x1 >= 110 && x1 < 130 && y1 >= 688 && y1 <= 694, "Sam Rowe is at " + at["Sam Rowe"]);
+  expect(n2 === 2 && x2 >= 115 && x2 < 135 && y2 >= 698 && y2 <= 704, "S. Rowe is at " + at["S. Rowe"]);
+  expect(at["Added by hand"]?.[0] === 1, "the added box's text is missing");
+  // the Yes box is ticked (a stroke crosses its lower left), the No box isn't
+  const [yes, no] = await colourAt(data, 1, [[136.2, 611.2], [182.2, 611.2]]);
+  expect(yes[2] > yes[0] + 40 && yes[0] < 150, "Yes isn't ticked: " + yes);
+  expect(no.every((c) => c > 240), "No shouldn't be ticked: " + no);
+
+  const fillable = await save(".desk .fillable");
+  const { PDFDocument, PDFTextField, PDFCheckBox } = await import("../vendor/pdf-lib/pdf-lib.esm.min.js");
+  const fields = (await PDFDocument.load(fillable.data)).getForm().getFields();
+  const texts2 = fields.filter((f) => f instanceof PDFTextField), boxes = fields.filter((f) => f instanceof PDFCheckBox);
+  expect(texts2.length === 3 && boxes.length === 3, `fields: ${texts2.length} text, ${boxes.length} boxes`);
+  expect(texts2.some((f) => f.getText() === "Sam Rowe") && boxes.filter((b) => b.isChecked()).length === 2, "answers didn't carry into the fields");
+});
+
 await check("flatten: answers and marks become part of the page, hidden ones stay hidden, links still work", async () => {
   await open("flatten", [marked]);
   await page.waitForSelector(".desk .go:not([disabled])");
