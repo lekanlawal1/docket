@@ -316,6 +316,10 @@ await check("fill a flat form: finds the blanks and tick boxes, writes answers i
   expect(await page.locator(".flat-field.text").count() === 2 && await page.locator(".flat-field.check").count() === 2, "page 1 should show 2 blanks and 2 boxes");
   await page.locator(".flat-field.text input").first().fill("Sam Rowe");
   await page.locator(".flat-field .tick").first().click();
+  // the No box: a second tap makes it a cross
+  await page.locator(".flat-field .tick").nth(1).click();
+  await page.locator(".flat-field .tick").nth(1).click();
+  expect(/crossed$/.test(await page.getAttribute(".flat-field .tick >> nth=1", "aria-label")), "two taps should cross the box");
   // one added by hand, below the table
   await page.click("[data-mode=text]");
   const canvas = page.locator(".flat-stage canvas");
@@ -344,17 +348,48 @@ await check("fill a flat form: finds the blanks and tick boxes, writes answers i
   expect(n1 === 1 && x1 >= 110 && x1 < 130 && y1 >= 688 && y1 <= 694, "Sam Rowe is at " + at["Sam Rowe"]);
   expect(n2 === 2 && x2 >= 115 && x2 < 135 && y2 >= 698 && y2 <= 704, "S. Rowe is at " + at["S. Rowe"]);
   expect(at["Added by hand"]?.[0] === 1, "the added box's text is missing");
-  // the Yes box is ticked (a stroke crosses its lower left), the No box isn't
-  const [yes, no] = await colourAt(data, 1, [[136.2, 611.2], [182.2, 611.2]]);
-  expect(yes[2] > yes[0] + 40 && yes[0] < 150, "Yes isn't ticked: " + yes);
-  expect(no.every((c) => c > 240), "No shouldn't be ticked: " + no);
+  // the Yes box is ticked (a stroke crosses its lower left) and the No box crossed (top left to bottom right)
+  const [yes, notTick, no] = await colourAt(data, 1, [[136.2, 611.2], [182.2, 611.2], [180.5, 616.5]]);
+  const pen = (c) => c[2] > c[0] + 40 && c[0] < 150;
+  expect(pen(yes), "Yes isn't ticked: " + yes);
+  expect(pen(no) && notTick.every((c) => c > 240), `No should be a cross, not a tick: ${no} / ${notTick}`);
 
   const fillable = await save(".desk .fillable");
   const { PDFDocument, PDFTextField, PDFCheckBox } = await import("../vendor/pdf-lib/pdf-lib.esm.min.js");
   const fields = (await PDFDocument.load(fillable.data)).getForm().getFields();
   const texts2 = fields.filter((f) => f instanceof PDFTextField), boxes = fields.filter((f) => f instanceof PDFCheckBox);
   expect(texts2.length === 3 && boxes.length === 3, `fields: ${texts2.length} text, ${boxes.length} boxes`);
-  expect(texts2.some((f) => f.getText() === "Sam Rowe") && boxes.filter((b) => b.isChecked()).length === 2, "answers didn't carry into the fields");
+  expect(texts2.some((f) => f.getText() === "Sam Rowe") && boxes.filter((b) => b.isChecked()).length === 3, "answers didn't carry into the fields");
+  // and the crossed box shows a cross there too
+  const [fYes, fNo] = await colourAt(fillable.data, 1, [[136.2, 611.2], [180.5, 616.5]]);
+  expect(pen(fNo) && !fYes.every((c) => c > 240), `fillable marks: yes ${fYes}, no ${fNo}`);
+});
+
+await check("fill a flat form on a phone: tapping a blank opens a big input, Next moves on", async () => {
+  await page.setViewportSize({ width: 390, height: 800 });
+  try {
+    await open("fill-form", [join(fx, "flat-form.pdf")]);
+    await page.waitForSelector(".flat-field");
+    await page.locator(".flat-field.text input").first().click();
+    expect(await page.isVisible(".flat-sheet"), "the panel didn't open");
+    expect(/Blank 1 of 3/.test(await page.textContent(".flat-sheet .where")), "wrong blank: " + await page.textContent(".flat-sheet .where"));
+    expect(await page.evaluate(() => document.activeElement.matches(".flat-sheet input")), "the panel's input should have the keyboard");
+    await page.keyboard.type("Sam Rowe");
+    await page.keyboard.press("Enter");
+    expect(/Blank 2 of 3/.test(await page.textContent(".flat-sheet .where")), "Enter should move to the next blank");
+    // the next blank after page 1 is on page 2
+    await page.click(".flat-sheet [data-go='1']");
+    expect(/Blank 3 of 3, page 2/.test(await page.textContent(".flat-sheet .where")) && /Page 2 of 2/.test(await page.textContent(".pager")), "Next should go on to page 2");
+    await page.keyboard.type("S. Rowe");
+    await page.click(".flat-sheet .done");
+    expect(!(await page.isVisible(".flat-sheet")), "Done should close the panel");
+    expect(await page.inputValue(".flat-field.text input") === "S. Rowe", "the page's box should show what was typed");
+    const { data } = await save();
+    const { texts } = await readPdf(data);
+    expect(texts[0].includes("Sam Rowe") && texts[1].includes("S. Rowe"), "answers missing: " + JSON.stringify(texts));
+  } finally {
+    await page.setViewportSize({ width: 1280, height: 900 });
+  }
 });
 
 await check("flatten: answers and marks become part of the page, hidden ones stay hidden, links still work", async () => {
