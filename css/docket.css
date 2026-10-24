@@ -392,3 +392,18 @@ canvas.sheet { display: block; width: 100%; max-width: 360px; height: auto; marg
 .ws-history .what { flex: 1; }
 .ws-history small { color: var(--muted); }
 .next-chip.ws-chip { border-color: var(--focus); }
+.ws-projects { margin-top: 22px; }
+.ws-projects-head { display: flex; align-items: baseline; justify-content: space-between; gap: 10px; }
+.ws-projects-head h2 { margin: 0; font-size: 20px; }
+.ws-projects-head small { color: var(--muted); }
+.ws-projects ul { list-style: none; margin: 10px 0; padding: 0; display: flex; flex-direction: column; gap: 8px; }
+.ws-project { display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 0; border-radius: 14px; background: var(--card); border: 1px solid var(--card-line); }
+.ws-open { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 2px; padding: 8px 14px; border: 0; background: transparent; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.ws-open b { max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.ws-open small { color: var(--muted); font-size: 13px; }
+.ws-project .pin[aria-pressed="true"] { border-color: var(--focus); color: var(--focus); }
+.ws-keep { margin-top: 18px; padding-top: 14px; border-top: 1px solid var(--card-line); }
+.ws-saved { display: flex; align-items: center; gap: 6px; margin: 0 0 8px; font-size: 14px; color: var(--muted); }
+.ws-saved.bad { color: var(--bad); }
+.ws-saved svg.art { stroke: var(--focus); }
+.ws-projects .note { font-size: 13px; color: var(--muted); }

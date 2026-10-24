@@ -570,6 +570,75 @@ await check("workspace: one document, several tools, undo and redo, then one dow
   }
 });
 
+await check("workspace autosave: the document and its steps survive a reload, and can be pinned and forgotten", async () => {
+  await page.goto(base + "#/workspace");
+  await page.evaluate(async () => { const s = await import(new URL("js/projects.js", location.href).href); await s.forgetAll(); s.setKeeping(true); });
+  await open("workspace", [lease]);
+  await page.waitForSelector(".ws-page");
+  await page.click('[data-tool="page-numbers"]');
+  await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".main .result"));
+  await page.click(".desk .go");
+  await page.waitForFunction(() => location.hash === "#/workspace" && document.querySelectorAll(".ws-history li").length === 2);
+  expect(/Saved on this device/.test(await page.locator(".ws-saved").innerText()), "not shown as saved");
+
+  // reload: everything in memory is gone, the saved project isn't
+  await page.reload();
+  await page.waitForSelector(".ws-project");
+  const row = await page.locator(".ws-project").innerText();
+  expect(row.includes("lease.pdf") && row.includes("2 steps"), "saved project: " + row);
+  await page.click(".ws-open");
+  await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 2 && document.querySelector(".ws-page"));
+  expect((await page.locator(".ws-history button.on .what").innerText()) === "Page numbers", "didn't reopen at the last step");
+
+  // undo is remembered too
+  await page.click('[data-act="undo"]');
+  await page.waitForSelector(".ws-history button.undone");
+  await page.waitForTimeout(300);
+  await page.reload();
+  await page.click(".ws-open");
+  await page.waitForFunction(() => document.querySelector(".ws-history button.on .what")?.textContent === "Opened");
+  // and redo still works after reopening: the undone step was kept
+  await page.click('[data-act="redo"]');
+  await page.waitForFunction(() => document.querySelector(".ws-history button.on .what")?.textContent === "Page numbers");
+  const { data } = await save(".desk .go");
+  const out = await readPdf(data);
+  expect(out.texts[out.pages - 1].includes(String(out.pages)), "the reopened step lost its page numbers");
+
+  // pin, then forget
+  await page.click(".close-doc");
+  await page.waitForSelector(".ws-project .pin");
+  await page.click(".ws-project .pin");
+  await page.waitForSelector('.ws-project .pin[aria-pressed="true"]');
+  page.once("dialog", (d) => d.accept());
+  await page.click(".ws-project .forget");
+  await page.waitForFunction(() => !document.querySelector(".ws-project"));
+
+  // switched off: nothing is kept
+  await page.uncheck("[name=keep]");
+  await page.locator(".main .dock input").first().setInputFiles([second]);
+  await page.waitForSelector(".ws-page");
+  expect(/Not kept/.test(await page.locator(".ws-saved").innerText()), "says it's kept with the switch off");
+  page.once("dialog", (d) => d.accept());
+  await page.click(".close-doc");
+  await page.waitForSelector(".main .dock");
+  expect(!(await page.locator(".ws-project").count()), "kept a project with the switch off");
+  await page.evaluate(async () => (await import(new URL("js/projects.js", location.href).href)).setKeeping(true));
+
+  // a month untouched: unpinned projects are cleared, pinned ones stay
+  const left = await page.evaluate(async () => {
+    const s = await import(new URL("js/projects.js", location.href).href);
+    const file = new File([new Uint8Array([37, 80, 68, 70])], "x.pdf", { type: "application/pdf" });
+    await s.create({ id: "old", name: "old.pdf", label: "Opened", file });
+    await s.create({ id: "kept", name: "kept.pdf", label: "Opened", file });
+    await s.update("kept", { pinned: true, touch: false });
+    await s.tidy(Date.now() + 31 * 86_400_000);
+    const names = (await s.list()).map((p) => p.name);
+    await s.forgetAll();
+    return names;
+  });
+  expect(left.join() === "kept.pdf", "after a month: " + left.join());
+});
+
 await check("workspace: a tool's result can be opened in the Workspace", async () => {
   await open("merge", [lease, second]);
   await page.waitForSelector(".desk .go:not([disabled])");
