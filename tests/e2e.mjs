@@ -13,7 +13,9 @@ const server = createServer(async (req, res) => {
   let path = decodeURIComponent(new URL(req.url, "http://x").pathname);
   if (path.endsWith("/")) path += "index.html";
   try {
-    const body = await readFile(join(root, path));
+    let body = await readFile(join(root, path));
+    // no analytics in tests: Cloudflare refuses beacons from localhost, and test runs aren't visits
+    if (path.endsWith(".html")) body = body.toString().replace(/<script[^>]*cloudflareinsights[^>]*><\/script>\n?/, "");
     res.writeHead(200, { "content-type": TYPES[extname(path)] || "application/octet-stream" }).end(body);
   } catch {
     // like GitHub Pages: an unknown address gets 404.html
