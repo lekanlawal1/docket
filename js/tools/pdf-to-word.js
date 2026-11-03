@@ -49,7 +49,7 @@ export function mount({ main, desk, files, privateNote }) {
       return p.heading ? `<h${p.heading + 1}>${inner}</h${p.heading + 1}>` : `<p${p.list ? ' class="li"' : ""}>${inner}</p>`;
     }).join("") + (result.length > 80 ? `<p><em>... and ${plural(result.length - 80, "more paragraph")}.</em></p>` : "");
     // the preview's pictures are only needed while this page is open
-    addEventListener("hashchange", () => urls.forEach(URL.revokeObjectURL), { once: true });
+    addEventListener("docket:navigate", () => urls.forEach(URL.revokeObjectURL), { once: true });
     if (result.length) main.append(h(`<p style="margin: 0 0 8px; color: var(--muted); font-size: 14px">Preview</p>`), preview);
 
     go.addEventListener("click", () => busy(go, out, "Writing...", async () => {

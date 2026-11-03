@@ -1,3 +1,4 @@
+import { go as openTool } from "../nav.js";
 import { h, esc, dock, download, bytes, plural, status, thumbnails } from "../ui.js";
 import { svg } from "../icons.js";
 import { readBytes, openForView, openForEdit, lib } from "../pdf.js";
@@ -156,7 +157,7 @@ export function mount({ main, desk, files, privateNote }) {
     desk.querySelectorAll("[data-tool]").forEach((b) => b.addEventListener("click", () => {
       ws.pending = b.dataset.tool;
       handOff([current()]);
-      location.hash = "#/" + b.dataset.tool;
+      openTool(b.dataset.tool);
     }));
     desk.querySelectorAll("[data-step]").forEach((b) => b.addEventListener("click", () => { jump(Number(b.dataset.step)); show(); }));
     const nameBox = desk.querySelector("[name=saveName]");

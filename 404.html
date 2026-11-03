@@ -1,0 +1,18 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Docket</title>
+<script>
+  // GitHub Pages sends every unknown address here. A tool's own address (/docket/merge) goes
+  // back to the app, which opens that tool; anything else gets a plain "not found".
+  (function () {
+    var path = location.pathname, base = path.replace(/[^/]*$/, ""), rest = path.slice(base.length);
+    if (/^[\w-]+$/.test(rest)) location.replace(base + location.search + "#/" + rest);
+  })();
+</script>
+<style>body{font:16px/1.5 system-ui,sans-serif;margin:0;display:grid;place-items:center;min-height:100vh;background:#F3EFE6;color:#1D2B36}a{color:#2E86AB}</style>
+</head>
+<body><p>That page isn't here. <a href="./">Go to Docket</a></p></body>
+</html>

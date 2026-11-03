@@ -1,3 +1,4 @@
+import { go as openTool } from "../nav.js";
 import { h, esc, dock, download, bytes, plural, busy, status } from "../ui.js";
 import { svg } from "../icons.js";
 import { lib } from "../pdf.js";
@@ -238,7 +239,7 @@ export function mount({ main, desk, files, privateNote }) {
     desk.querySelector(".after").hidden = false;
   }));
 
-  desk.querySelector(".ocr").addEventListener("click", () => { handOff([made]); location.hash = "#/searchable"; });
+  desk.querySelector(".ocr").addEventListener("click", () => { handOff([made]); openTool("searchable"); });
 
   const first = files.filter(isImage);
   if (first.length) add(first);

@@ -15,7 +15,10 @@ const server = createServer(async (req, res) => {
   try {
     const body = await readFile(join(root, path));
     res.writeHead(200, { "content-type": TYPES[extname(path)] || "application/octet-stream" }).end(body);
-  } catch { res.writeHead(404).end(); }
+  } catch {
+    // like GitHub Pages: an unknown address gets 404.html
+    res.writeHead(404, { "content-type": "text/html" }).end(await readFile(join(root, "404.html")).catch(() => ""));
+  }
 }).listen(0);
 // BASE=https://.../docket/ runs the same checks against a deployed copy
 const base = process.env.BASE || `http://localhost:${server.address().port}/`;
@@ -57,8 +60,15 @@ async function check(name, fn) {
   }
 }
 
+// Reloading a tool's own address (/merge): the host answers with 404.html, which hands it back to
+// the app. The browser reports that 404, and it's expected, so it isn't counted as an error.
+async function reloadAddress() {
+  await page.reload();
+  for (let i = errors.length - 1; i >= 0; i--) if (/status of 404/.test(errors[i])) errors.splice(i, 1);
+}
+
 async function open(id, files) {
-  // going to the same hash twice doesn't reload the tool, so start from home each time
+  // going to the same tool twice doesn't reload it, so start from home each time
   await page.goto(base);
   await page.goto(base + "#/" + id);
   await page.waitForSelector(".workbench");
@@ -87,6 +97,27 @@ const zipNames = async (data) => {
 };
 const expect = (cond, msg) => { if (!cond) throw new Error(msg); };
 const goodStatus = async () => expect(await page.locator(".desk .status.good").count(), "no success message: " + await page.locator(".desk .status").innerText());
+
+await check("addresses: each tool has its own path, old #/ links still work, and back, forward and reload behave", async () => {
+  const path = new URL(base).pathname;
+  await page.goto(base + "#/merge");
+  await page.waitForSelector(".workbench");
+  if (await page.evaluate(() => location.pathname + location.hash) !== path + "merge") throw new Error("an old #/merge link should move to " + path + "merge");
+  await page.click('a.brand');
+  await page.waitForSelector("#tools");
+  if (await page.evaluate(() => location.pathname) !== path) throw new Error("the logo should go home");
+  await page.click('.berth[href="#/split"]');
+  await page.waitForSelector(".workbench");
+  if (!(await page.evaluate(() => location.pathname.endsWith("/split")))) throw new Error("a tool link should open /split");
+  await page.goBack(); await page.waitForSelector("#tools");
+  await page.goForward(); await page.waitForSelector(".workbench");
+  if (!(await page.textContent("h1")).includes("Split")) throw new Error("forward should reopen Split");
+  await reloadAddress(); await page.waitForSelector(".workbench");
+  if (!(await page.evaluate(() => location.pathname.endsWith("/split") && !location.hash))) throw new Error("reloading /split should stay on /split");
+  await page.click('header a[href="#tools"]');
+  await page.waitForFunction(() => location.hash === "#tools" && document.querySelector("#tools"));
+  if (await page.evaluate(() => location.pathname) !== path) throw new Error("All tools from a tool page should go home");
+});
 
 await check("home lists every pier and toolbox search filters", async () => {
   await page.goto(base);
@@ -615,14 +646,14 @@ await check("workspace: one document, several tools, undo and redo, then one dow
     const spy = () => (downloaded = true);
     page.on("download", spy);
     await page.click(".desk .go");
-    await page.waitForURL(/#\/workspace/);
+    await page.waitForURL(/\/workspace$/);
     await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 2);
 
     // a watermark on top
     await page.click('[data-tool="watermark"]');
     await page.waitForFunction(() => document.title.startsWith("Watermark") && document.querySelector(".main .result"));
     await page.click(".desk .go");
-    await page.waitForURL(/#\/workspace/);
+    await page.waitForURL(/\/workspace$/);
     await page.waitForFunction(() => document.querySelectorAll(".ws-history li").length === 3);
     page.off("download", spy);
     expect(!downloaded, "a tool opened from the Workspace downloaded its result instead of handing it back");
@@ -663,11 +694,11 @@ await check("workspace autosave: the document and its steps survive a reload, an
   await page.click('[data-tool="page-numbers"]');
   await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".main .result"));
   await page.click(".desk .go");
-  await page.waitForFunction(() => location.hash === "#/workspace" && document.querySelectorAll(".ws-history li").length === 2);
+  await page.waitForFunction(() => location.pathname.endsWith("/workspace") && document.querySelectorAll(".ws-history li").length === 2);
   expect(/Saved on this device/.test(await page.locator(".ws-saved").innerText()), "not shown as saved");
 
   // reload: everything in memory is gone, the saved project isn't
-  await page.reload();
+  await reloadAddress();
   await page.waitForSelector(".ws-project");
   const row = await page.locator(".ws-project").innerText();
   expect(row.includes("lease.pdf") && row.includes("2 steps"), "saved project: " + row);
@@ -679,7 +710,7 @@ await check("workspace autosave: the document and its steps survive a reload, an
   await page.click('[data-act="undo"]');
   await page.waitForSelector(".ws-history button.undone");
   await page.waitForTimeout(300);
-  await page.reload();
+  await reloadAddress();
   await page.click(".ws-open");
   await page.waitForFunction(() => document.querySelector(".ws-history button.on .what")?.textContent === "Opened");
   // and redo still works after reopening: the undone step was kept
@@ -732,7 +763,7 @@ await check("workspace project file: save every step as one file, open it later 
   await page.click('[data-tool="page-numbers"]');
   await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".main .result"));
   await page.click(".desk .go");
-  await page.waitForFunction(() => location.hash === "#/workspace" && document.querySelectorAll(".ws-history li").length === 2);
+  await page.waitForFunction(() => location.pathname.endsWith("/workspace") && document.querySelectorAll(".ws-history li").length === 2);
   await page.click('[data-act="undo"]');
   await page.waitForSelector(".ws-history button.undone");
   const { name, data } = await save(".desk .project-file");
@@ -767,7 +798,7 @@ await check("workspace: a tool's result can be opened in the Workspace", async (
   await page.waitForSelector(".desk .go:not([disabled])");
   await save();
   await page.click(".next-chip[data-ws]");
-  await page.waitForURL(/#\/workspace/);
+  await page.waitForURL(/\/workspace$/);
   await page.waitForSelector(".ws-page");
   expect((await page.locator(".ws-history .what").first().innerText()) === "From Merge", "first step should say where it came from");
 });
@@ -781,7 +812,7 @@ await check("keep working: merge, then page numbers on the merged file without s
   expect((await row.innerText()).includes(merged.name), "the row doesn't name the merged file");
   expect(!(await page.locator('.next-chip[data-id="merge"]').count()), "offers Merge again from Merge");
   await page.click('.next-chip[data-id="page-numbers"]');
-  await page.waitForURL(/#\/page-numbers/);
+  await page.waitForURL(/\/page-numbers$/);
   await page.waitForFunction(() => document.title.startsWith("Page numbers") && document.querySelector(".main .result"));
   expect((await page.locator(".main").innerText()).includes(merged.name), "page numbers didn't open the merged file");
   const numbered = await save();
@@ -801,7 +832,7 @@ await check("keep working on a picture: resize, then compress the resized one", 
   await page.check("[name=mode][value=preset]");
   const { name } = await save();
   await page.click('.next-chip[data-id="compress-image"]');
-  await page.waitForURL(/#\/compress-image/);
+  await page.waitForURL(/\/compress-image$/);
   await page.waitForFunction((n) => document.querySelector(".main").innerText.includes(n), name);
 });
 
@@ -1058,7 +1089,7 @@ await check("scan: an angled phone photo is found, straightened and cleaned, and
 
   // straight on to Make searchable, with the scan already loaded
   await page.click(".desk .ocr");
-  await page.waitForURL(/#\/searchable/);
+  await page.waitForURL(/\/searchable$/);
   await page.waitForSelector(".desk .go");
   const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 180_000 }), page.locator(".desk .go").click()]);
   const text = (await readPdf(await readFile(await dl.path()))).texts[0];

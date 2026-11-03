@@ -39,7 +39,7 @@ export function mount({ main, desk, files, privateNote }) {
     const grid = h(`<div class="image-grid"></div>`);
     main.append(grid);
     const urls = [];
-    addEventListener("hashchange", () => urls.forEach(URL.revokeObjectURL), { once: true });
+    addEventListener("docket:navigate", () => urls.forEach(URL.revokeObjectURL), { once: true });
 
     const chosen = () => found.filter((f) => !desk.querySelector("[name=small]").checked || Math.max(f.px.w, f.px.h) >= 100);
     function draw() {

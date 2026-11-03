@@ -6,7 +6,7 @@
 // cache first.
 
 // files:start (written by scripts/offline-list.mjs)
-const VERSION = "af475fbea0eb";
+const VERSION = "c219b08e12c7";
 const VENDOR_VERSION = "95f9fc1ff501";
 const CORE = [
   "assets/apple-touch-icon.png",
@@ -25,6 +25,7 @@ const CORE = [
   "js/images.js",
   "js/layout.js",
   "js/main.js",
+  "js/nav.js",
   "js/ocr.js",
   "js/pagetext.js",
   "js/pdf.js",
@@ -139,6 +140,7 @@ async function status() {
 }
 
 const inScope = (url) => url.origin === location.origin;
+const isToolPath = (url) => { const base = new URL(self.registration.scope).pathname; return url.pathname.startsWith(base) && /^[\w-]+$/.test(url.pathname.slice(base.length)); };
 const isLib = (url) => inScope(url) && url.pathname.includes("/vendor/");
 
 self.addEventListener("fetch", (e) => {
@@ -148,6 +150,8 @@ self.addEventListener("fetch", (e) => {
   if (/fonts\.(googleapis|gstatic)\.com$/.test(url.hostname)) return e.respondWith(fontFirst(req));
   if (!inScope(url)) return;                                  // the portfolio bar and the like
   if (isLib(url)) return e.respondWith(cacheFirst(req));
+  // a tool's own address (/docket/merge) is the app itself
+  if (req.mode === "navigate" && isToolPath(url)) return e.respondWith(networkFirst(new Request(new URL("./", self.registration.scope))));
   e.respondWith(networkFirst(req));
 });
 

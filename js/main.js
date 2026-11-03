@@ -1,10 +1,11 @@
 // Docket's front door: the home page, the tool pages, night mode and the little boat.
-// Routes are hashes so the whole thing works as plain static files: "#/merge" opens a tool.
+// Each tool has its own path, "/docket/merge"; js/nav.js explains how that works on static hosting.
 
 import { PIERS, findTool } from "./tools.js";
 import { svg } from "./icons.js";
 import { h, esc, dock, privateNote, onResult, captureDownloads } from "./ui.js";
 import { ws, begin, push } from "./workspace.js";
+import { current, go, listen } from "./nav.js";
 
 const app = document.getElementById("app");
 
@@ -223,9 +224,9 @@ function keepWorking(desk, currentId, file) {
     const btn = e.target.closest(".next-chip");
     if (!btn) return;
     if (btn.classList.contains("more")) { el.querySelectorAll(".next-chip[hidden]").forEach((b) => (b.hidden = false)); btn.remove(); return; }
-    if (btn.hasAttribute("data-ws")) { begin(file, `From ${findTool(currentId)?.name || "a tool"}`); location.hash = "#/workspace"; return; }
+    if (btn.hasAttribute("data-ws")) { begin(file, `From ${findTool(currentId)?.name || "a tool"}`); go("workspace"); return; }
     waiting = [file];
-    location.hash = "#/" + btn.dataset.id;
+    go(btn.dataset.id);
   });
   const note = desk.querySelector(".private-note");
   note ? note.before(el) : desk.append(el);
@@ -268,7 +269,7 @@ async function toolPage(id) {
       captureDownloads((file) => {
         push(tool.name, file);
         ws.pending = null;
-        location.hash = "#/workspace";
+        go("workspace");
       });
     }
     mod.mount({ main, desk, files: takeWaiting(), privateNote });
@@ -282,10 +283,12 @@ async function toolPage(id) {
 }
 
 function route() {
-  const m = location.hash.match(/^#\/([\w-]+)/);
-  if (m) toolPage(m[1]);
+  const id = current();
+  if (id) toolPage(id);
   else if (!app.querySelector("#tools")) home();
   else if (location.hash.length > 1) document.getElementById(location.hash.slice(1))?.scrollIntoView({ behavior: "smooth" });
+  else if (!location.hash) scrollTo({ top: 0, behavior: "smooth" });
 }
-addEventListener("hashchange", route);
+listen(route);
+addEventListener("hashchange", route);     // "#tools" and the like on the home page
 route();
