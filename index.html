@@ -22,6 +22,20 @@
     if (night) document.documentElement.setAttribute("data-theme", "night");
   })();
 </script>
+<script>
+  // Arriving from the portfolio's tour: stay covered until the portfolio's transition opens the page.
+  // Only visitors who came from the portfolio load anything for this; everyone else loads nothing extra.
+  try {
+    if (sessionStorage.getItem("pf-warp")) {
+      document.documentElement.classList.add("pf-in");
+      const s = document.createElement("style");
+      s.textContent = "@view-transition{navigation:auto} html.pf-in{background:#0E0D0C} html.pf-in body{visibility:hidden}";
+      document.head.append(s);
+      document.head.append(Object.assign(document.createElement("script"), { src: "https://lekanlawal1.github.io/portfolio-site/warp.js" }));
+      setTimeout(() => document.documentElement.classList.remove("pf-in"), 3000);
+    }
+  } catch { /* storage blocked: no transition, just the page */ }
+</script>
 </head>
 <body>
 <header class="wrap rail">
@@ -52,7 +66,8 @@
   (() => {
     let fromPortfolio = false;
     try {
-      fromPortfolio = /^https:\/\/lekanlawal1\.github\.io\/portfolio-site\//.test(document.referrer) || sessionStorage.getItem("from-portfolio") === "1";
+      fromPortfolio = /^https:\/\/lekanlawal1\.github\.io\/portfolio-site\//.test(document.referrer) || sessionStorage.getItem("from-portfolio") === "1"
+        || sessionStorage.getItem("pf-from") === "1" || sessionStorage.getItem("pf-tour") === "1";   // set by the portfolio and its tour
       if (fromPortfolio) sessionStorage.setItem("from-portfolio", "1");
     } catch { /* storage blocked: go by the referrer alone */ }
     if (!fromPortfolio) return;

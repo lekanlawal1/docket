@@ -8,8 +8,8 @@ const TOOLS = [
   { id: "text", label: "Text", hint: "Tap where the text should start, then type." },
   { id: "highlight", label: "Highlight", hint: "Drag across what you want highlighted." },
   { id: "whiteout", label: "White-out", hint: "Drag over what you want covered." },
-  { id: "check", label: "✓", aria: "Tick", hint: "Tap to place a tick." },
-  { id: "cross", label: "✗", aria: "Cross", hint: "Tap to place a cross." },
+  { id: "check", icon: "check", aria: "Tick", hint: "Tap to place a tick." },
+  { id: "cross", icon: "close", aria: "Cross", hint: "Tap to place a cross." },
 ];
 const COLOURS = { black: [0.1, 0.1, 0.12], blue: [0.1, 0.25, 0.65], red: [0.75, 0.12, 0.1] };
 const css = (c) => `rgb(${COLOURS[c].map((v) => Math.round(v * 255)).join(",")})`;
@@ -31,7 +31,7 @@ export function mount({ main, desk, files, privateNote }) {
 
     desk.innerHTML = `<h2>Add text and marks</h2>
       <div class="tool-pick" role="radiogroup" aria-label="What to add">
-        ${TOOLS.map((t) => `<button type="button" class="pill${t.id === tool ? "" : " ghost"}" data-tool="${t.id}" role="radio" aria-checked="${t.id === tool}"${t.aria ? ` aria-label="${t.aria}"` : ""}>${t.label}</button>`).join("")}
+        ${TOOLS.map((t) => `<button type="button" class="pill${t.id === tool ? "" : " ghost"}" data-tool="${t.id}" role="radio" aria-checked="${t.id === tool}"${t.aria ? ` aria-label="${t.aria}"` : ""}>${t.icon ? svg(t.icon, { size: 16 }) : t.label}</button>`).join("")}
       </div>
       <p class="tool-hint" style="font-size: 14px"></p>
       <div style="display: flex; gap: 10px">

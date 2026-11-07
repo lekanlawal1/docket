@@ -78,7 +78,7 @@ export async function flatForm({ main, desk, file, bytesIn, privateNote }) {
   desk.innerHTML = `<h2>Fill in</h2>
     <p class="summary-line">This form has no fillable boxes, so Docket found where to write: ${plural(count("text"), "blank")} and ${plural(count("check"), "tick box", "tick boxes")}${pages.length > 1 ? ` on ${plural(pages.length, "page")}` : ""}.</p>
     <p class="note">Check them over: add any it missed with the buttons above the page, and remove any that are wrong with ×.</p>
-    <p class="note">Tap a tick box once for ✓, again for ✕, and a third time to empty it.</p>
+    <p class="note">Tap a tick box once for a tick, again for a cross, and a third time to empty it.</p>
     <button type="button" class="pill go">Save filled PDF</button>
     <button type="button" class="pill ghost fillable" style="margin-top: 8px">Save as a fillable PDF</button>
     <p class="note">A fillable PDF has real form fields, with your answers in them, so it can be filled in or changed in any PDF app.</p>
