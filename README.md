@@ -1,91 +1,45 @@
 # Docket
 
-PDF and document tools that run entirely in your browser. Merge, split, sign, redact, compress, convert and more, without uploading anything.
+Free PDF tools that run entirely in your browser. Merge, split, sign, redact, compress, convert and more, without uploading anything.
 
-**Live:** https://lekanlawal1.github.io/docket/
+[Open Docket](https://lekanlawal1.github.io/docket/)
 
-## Why
+![Docket's home page](docs/screenshot.jpg)
 
-Most free PDF sites upload your file to their server to do something your own computer could do in a second. That's fine for a menu. It's not fine for a lease, a bank statement or a signed contract. Docket does the work on your device, so there's nothing to upload, no account, and no file-size limit beyond what your browser can hold.
+## Why I built it
+
+Most free PDF sites upload your file to their server to do something your own computer could do in a second. That's fine for a menu. It's not fine for a lease, a bank statement or a signed contract. Docket does everything on your device, so there's nothing to upload, no account and no file-size limit beyond what your browser can handle.
 
 ## What's in it
 
-| Pier | Tools |
-| --- | --- |
-| Organise | Workspace, Merge, Split, Organise pages, Extract pages, Crop pages, Pages per sheet, Remove blank pages |
-| Convert | PDF to JPG, Extract images, Scan with your phone, Photo to text, Images to PDF, PDF to Word, PDF to Excel, PDF to text |
-| Edit and sign | Add text and marks, Sign, Fill a form, Flatten, Page numbers, Watermark |
-| Protect | Redact, Password, Clean for sharing |
-| Shrink and fix | Compress, Make searchable, Repair PDF, Grayscale |
-| Read | Compare PDFs, Summary, Find dates and amounts |
-| Images and makers | Convert images, Enhance image, Resize image, Compress image, QR code, Lined paper |
+About 40 tools across seven groups: organise, convert, edit and sign, protect, shrink and fix, read, and images. There's also a Workspace that keeps one document through many changes, with undo and redo, so you download once at the end. It works offline and can be installed as an app.
 
-## Things worth knowing
+## The parts I'm most careful about
 
-- **Redaction is real.** Pages with boxes are redrawn as images with the boxes burned in, so the text underneath is gone, not hidden under a rectangle. The result is then read back, and if any redacted text can still be found, nothing is saved.
-- **Compress keeps your text.** It shrinks the pictures inside the PDF and leaves the text alone, so it stays sharp and selectable. Only the "Flatten" level, a last resort, turns pages into pictures.
-- **Some tools turn pages into images.** Redact (only the pages you mark), Grayscale and Compress's Flatten level do this. Text on those pages can't be selected afterwards, and each tool says so before you run it.
-- **Compress won't hand you a bigger file.** If the result isn't smaller, it tells you instead of downloading it.
-- **The summary doesn't use AI.** It picks the sentences that best represent the document from the document itself, so it can't invent anything. It's a quick way in, not a replacement for reading.
-- **Passwords use AES-256,** and the locked file is opened twice before you get it: once without the password (it must refuse) and once with it (it must open). Print and copy restrictions are honoured by most PDF apps but aren't real locks, and the page says so.
-- **Make searchable doesn't change how the page looks.** The words it reads go behind the scan as invisible text, the way scanners with built-in OCR do it. It reads English and French print; handwriting and blurry photos come out poorly, and it flags pages it was unsure about.
-- **PDF to Word rebuilds structure, not layout.** A PDF only stores where each piece of text goes, so Docket works out lines, paragraphs, headings, lists, bold and italic from positions and fonts, drops repeated headers, footers and page numbers, and reads two-column pages column by column. Pictures come along, placed between the paragraphs they sat between (a logo repeated in every header is left out), and simple tables become real Word tables (ones with merged or wrapped cells may come out as tab-separated text). There's a preview so you can see what you'll get before saving.
-- **The Workspace keeps one document through many changes.** Pick a change and the right tool opens with the document loaded; when it saves, the result goes back to the Workspace as a new step instead of downloading. Every step is kept, so undo, redo and going back to any step are instant, and you download once at the end. Unless switched off, each step is also saved in the browser's own database on the device (IndexedDB, never uploaded), so a project survives a refresh or a closed tab; projects untouched for 30 days are deleted unless pinned, and any can be forgotten. "Save project file" downloads the document with every step as one `.docket` file (a ZIP of the step PDFs and a manifest), to carry on later on any device; files opened this way are checked before use. After any tool, "Keep working" offers the next tools, or the Workspace, with the result already loaded.
-- **It works offline and installs as an app.** A service worker keeps the site on the device after the first visit. App code is fetched fresh when there's a connection and taken from the cache when there isn't; the big libraries (the text reader, qpdf, the HEIC decoder) are kept once used, or all at once from "Save every tool for offline". After changing any file, run `npm run offline` to update the list in `sw.js` (`npm test` fails until you do).
-- **Clean for sharing really removes things.** pdf-lib saves every object it loaded, even ones nothing points to any more, so after removing comments, attachments and scripts Docket sweeps out everything unreachable; the file is written from scratch, which also drops earlier saved versions.
-- **Fill a form works on forms without fields.** A scan, a photo, or a PDF made from a picture has nothing to type into, so Docket draws each page and looks for where to write: a thin line with no writing just above it is a blank (a label above part of a line splits it; page-wide rules, heavy bars and table rows are skipped), and a small, square, empty outline is a tick box. Each tick box takes a tick or a cross (tap again to switch or empty it), and on a phone tapping a blank opens a full-size input at the bottom with a close-up of that part of the form, plus Back and Next to move between blanks. You can add any it missed and remove any it got wrong, then save with the answers written on the page, or as a real fillable PDF with those form fields added. It finds printed lines and boxes; blanks shown only as white space, or boxes drawn by hand, need adding by hand.
-- **Signatures are pictures of a signature,** like signing a printout. They aren't certificate-based digital signatures.
+Redaction is real. A lot of tools draw a black box over the text and leave the text underneath. Docket redraws marked pages as images with the boxes burned in, then reads the result back, and if any redacted text can still be found, it doesn't save.
 
-## Running it locally
+Passwords are checked before you get the file. The locked PDF is opened once without the password, where it must refuse, and once with it, where it must open.
 
-There's no build step. Serve the folder with any static server:
+Compress keeps your text sharp and selectable. It only shrinks the pictures. If the result isn't actually smaller, it tells you instead of handing you a bigger file.
+
+PDF to Word rebuilds the document's structure. A PDF only stores where each bit of text sits, so Docket works out paragraphs, headings, lists, tables and columns from positions and fonts. You get a preview before saving.
+
+Fill a form works on scans and photos with no form fields. It finds the blank lines and tick boxes itself, so you can type onto them, and you can add any it missed.
+
+## Run it
+
+There's no build step. Serve the folder with any static server, since it uses ES modules:
 
 ```sh
-npx serve .
-# or
 python3 -m http.server
+npm install && npm test     # unit tests
+npm run test:e2e            # drives every tool in Chromium with generated PDFs
 ```
 
-It has to be served over HTTP (not opened as a file) because it uses ES modules.
+After changing any file, run `npm run offline` to update the offline file list.
 
-## Tests
+## More
 
-```sh
-npm install
-npm test            # unit tests: page ranges, zip writer, summary, item finder, QR payloads
-npm run test:e2e    # drives every tool in Chromium with generated PDFs and checks the output
-```
+[docs/details.md](docs/details.md) has the full list of tools, how each tricky one works, and the code layout. It's built with plain JavaScript, [pdf-lib](https://pdf-lib.js.org/), [PDF.js](https://mozilla.github.io/pdf.js/), [qpdf](https://github.com/qpdf/qpdf) and [Tesseract.js](https://github.com/naptha/tesseract.js), all kept in `vendor/` with their licences.
 
-The end-to-end test builds its own test PDFs (`tests/fixtures.mjs`), so there are no binary fixtures in the repo.
-
-## How it's built
-
-Plain HTML, CSS and JavaScript modules. No framework.
-
-- [pdf-lib](https://pdf-lib.js.org/) edits and creates PDFs.
-- [PDF.js](https://mozilla.github.io/pdf.js/) draws pages and reads their text.
-- [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator) makes QR codes.
-- [qpdf](https://github.com/qpdf/qpdf), compiled to WebAssembly by [qpdf-wasm](https://github.com/neslinesli93/qpdf-wasm), adds and removes passwords. It's only downloaded when the Password tool is used.
-- [Tesseract.js](https://github.com/naptha/tesseract.js) with Tesseract's English and French data reads scanned pages for Make searchable. About 7 MB, downloaded the first time that tool runs (French adds 0.7 MB, only if chosen).
-- [heic-to](https://github.com/hoppergee/heic-to) (libheif) opens iPhone photos (HEIC) in browsers other than Safari. About 3 MB, downloaded only when a HEIC photo is opened. It's LGPL-3.0 and kept unmodified in its own file, `vendor/heic-to/`, with its licence.
-
-All of them are vendored in `vendor/`, with their licences, so the site works offline once loaded and doesn't depend on a CDN.
-
-```
-index.html
-css/docket.css       the whole theme, day and night
-js/main.js           routing, the home page, the water and the boat
-js/tools.js          the list of piers and tools
-js/tools/*.js        one module per tool: exports `intro` and `mount()`
-js/pdf.js            loading, drawing and rasterising PDFs
-js/ui.js             small DOM helpers shared by the tools
-js/ranges.js, zip.js, text.js, layout.js, docx.js   pure logic, unit tested in Node
-```
-
-## Credits
-
-Built by [Lekan Lawal](https://lekanlawal1.github.io/portfolio-site/).
-
-## Licence
-
-MIT. See [LICENSE](LICENSE).
+MIT licence. See [LICENSE](LICENSE).
