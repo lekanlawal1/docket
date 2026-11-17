@@ -265,6 +265,27 @@ await check("sign (typed, placed on page 1)", async () => {
   expect((await readPdf((await save()).data)).pages === 4, "wrong page count");
 });
 
+await check("sign: initials, full name, date, text and a checkmark, with name, date and text kept as real text", async () => {
+  await open("sign", [lease]);
+  await page.click("[data-tab=type]");
+  await page.fill("[name=typed]", "Jordan Example");
+  await page.fill("[name=fullname]", "Jordan Example");
+  expect(await page.inputValue("[name=initials]") === "JE", "initials don't follow the full name");
+  await page.fill("[name=date]", "November 17, 2026");
+  await page.fill("[name=text]", "Unit 4B");
+  await page.waitForSelector(".stage canvas");
+  const spots = { signature: [150, 300], initials: [150, 380], name: [150, 440], date: [150, 500], text: [150, 560], check: [100, 620] };
+  for (const [k, [x, y]] of Object.entries(spots)) {
+    await page.click(`[data-kind=${k}]`);
+    await page.locator(".stage canvas").click({ position: { x, y } });
+  }
+  expect(await page.locator(".stage .sig").count() === 6, "not every field was placed");
+  const { data } = await save();
+  const { pages, texts } = await readPdf(data);
+  expect(pages === 4, "wrong page count");
+  for (const want of ["Jordan Example", "November 17, 2026", "Unit 4B"]) expect(texts[0].includes(want), `"${want}" isn't text on page 1`);
+});
+
 await check("add text and marks: in the right place, upright on a rotated page", async () => {
   // a window tall enough to show a whole page, so every click lands on it without scrolling
   await page.setViewportSize({ width: 1280, height: 1500 });
