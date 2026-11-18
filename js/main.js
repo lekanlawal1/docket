@@ -56,9 +56,8 @@ function home() {
   document.title = "Docket: every PDF tool, on your device";
   app.innerHTML = "";
   const hero = h(`<section class="hero" style="padding-top: 36px">
-    <p class="eyebrow">Every PDF tool, moored on your device</p>
-    <h1>Bring your documents in. They never leave the dock.</h1>
-    <p class="lead">Merge, split, sign, redact, compress and convert, all in your browser. Nothing is uploaded, there's no account, and no file limits.</p>
+    <h1>Every PDF tool. Your files never leave your device.</h1>
+    <p class="lead">Merge, split, sign, redact, compress and convert, all in your browser. Nothing is uploaded. No account, no file limits.</p>
     <div class="dock-spot" style="margin-top: 36px"></div>
     ${water()}
     <div class="suggest" hidden></div>
@@ -77,7 +76,7 @@ function home() {
       const ids = suggestions(files);
       suggest.hidden = false;
       suggest.innerHTML = ids.length
-        ? `<p style="margin: 16px 0 10px; font-weight: 600">${files.length === 1 ? esc(files[0].name) : files.length + " files"} on the dock. What would you like to do?</p>
+        ? `<p style="margin: 16px 0 10px; font-weight: 600">${files.length === 1 ? esc(files[0].name) : files.length + " files"} ready. What would you like to do?</p>
            <div class="berths">${ids.map((id) => berth(findTool(id))).join("")}</div>`
         : `<p class="status bad">Docket works with PDFs and images. That file looks like neither.</p>`;
     },
@@ -85,7 +84,7 @@ function home() {
 
   const piers = h(`<section id="tools" style="padding-top: 72px">
     <div class="piers-head">
-      <h2>The piers</h2>
+      <h2>All tools</h2>
       <label class="search">${svg("spyglass", { size: 18 })}<span class="sr-only">Find a tool</span>
         <input type="search" placeholder="Find a tool, e.g. sign" autocomplete="off"></label>
     </div>
@@ -111,7 +110,7 @@ function home() {
 
   const harbour = h(`<section id="harbour" style="padding: 64px 0 40px">
     <div class="harbour">
-      <div><h2>Nothing leaves the harbour</h2>
+      <div><h2>Nothing leaves your device</h2>
         <p>Each tool runs in your browser. Your files are read into memory, changed, and handed back to you. Close the tab and they're gone.</p></div>
       <div><h3>Redaction you can trust</h3>
         <p>Black boxes alone hide nothing. Docket burns the boxes into the page, so the text underneath is gone, then reads the result back to check.</p></div>
@@ -124,16 +123,16 @@ function home() {
 }
 
 const pier = (p) => `<div class="pier">
-  <div class="pier-head"><span class="dot" style="background: var(${p.tint})"></span><span class="no">Pier ${p.no}</span>
+  <div class="pier-head"><span class="dot" style="background: var(${p.tint})"></span>
     <h3>${esc(p.name)}</h3><span class="blurb">${esc(p.blurb)}</span></div>
   <div class="berths">${p.tools.map(berth).join("")}</div>
 </div>`;
 
 const berth = (t) => {
   const inner = `<span class="chip" style="background: var(${t.pier.tint})">${svg(t.icon)}</span>
-    <span style="flex: 1; min-width: 0"><span class="name"><span>${esc(t.name)}</span><span class="tag">${t.soon ? "Soon" : t.berth}</span></span>
+    <span style="flex: 1; min-width: 0"><span class="name">${esc(t.name)}</span>
     <span class="what">${esc(t.what)}</span></span>`;
-  return t.soon ? `<div class="berth soon" aria-disabled="true">${inner}</div>` : `<a class="berth" href="#/${t.id}">${inner}</a>`;
+  return `<a class="berth" href="#/${t.id}">${inner}</a>`;
 };
 
 // ---------------------------------------------------------------- offline, and as an app
@@ -213,7 +212,7 @@ function keepWorking(desk, currentId, file) {
   if (currentId === "workspace") return;
   const kind = /pdf/i.test(file.type) || /\.pdf$/i.test(file.name) ? "pdf" : /^image\//.test(file.type) ? "image" : null;
   if (!kind) return;
-  const tools = NEXT[kind].filter((id) => id !== currentId).map(findTool).filter((t) => t && !t.soon);
+  const tools = NEXT[kind].filter((id) => id !== currentId).map(findTool).filter(Boolean);
   const chip = (t, hidden) => `<button type="button" class="next-chip" data-id="${t.id}" ${hidden ? "hidden" : ""}>${svg(t.icon, { size: 18 })}<span>${esc(t.name)}</span></button>`;
   const el = h(`<div class="next-steps" role="region" aria-label="Keep working on this file">
     <p class="next-title">Keep working on <b>${esc(file.name)}</b></p>
@@ -245,7 +244,6 @@ async function toolPage(id) {
   document.title = `${tool.name} | Docket`;
   app.innerHTML = "";
   const page = h(`<section style="padding: 20px 0 60px">
-    <p class="eyebrow" style="color: var(--wood)">Pier ${tool.pier.no} · Berth ${tool.berth}</p>
     <div class="tool-head"><span class="chip big" style="background: var(${tool.pier.tint})">${svg(tool.icon)}</span><h1>${esc(tool.name)}</h1></div>
     <p class="tool-intro">${esc(tool.what)}</p>
     <div class="workbench"><div class="main"></div><aside class="desk" aria-label="Settings"></aside></div>
@@ -253,14 +251,9 @@ async function toolPage(id) {
   app.append(page);
   const main = page.querySelector(".main"), desk = page.querySelector(".desk");
 
-  if (tool.soon) {
-    main.innerHTML = `<p>This one isn't built yet. It's on the list, and it'll appear here when it works properly.</p>
-      <p><a class="pill" href="#tools">Back to all tools</a></p>`;
-    desk.remove();
-    return;
-  }
   try {
     const mod = await import(`./tools/${id}.js`);
+    if (current() !== id) return;   // left while it loaded: don't take the waiting files or the downloads
     if (mod.intro) page.querySelector(".tool-intro").textContent = mod.intro;
     if (fromWorkspace) {
       page.querySelector(".workbench").before(h(`<div class="ws-banner" role="note">${svg("ledger", { size: 18 })}

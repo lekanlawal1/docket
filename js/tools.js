@@ -1,8 +1,7 @@
-// Every tool, grouped into piers. A tool with `soon: true` is listed but not built yet;
-// the page says so rather than hiding it.
+// Every tool, grouped into piers (the home page's sections).
 
 export const PIERS = [
-  { no: "01", name: "Organise", blurb: "Put pages in order", tint: "--tint-1", tools: [
+  { name: "Organise", blurb: "Put pages in order", tint: "--tint-1", tools: [
     { id: "workspace", name: "Workspace", icon: "ledger", what: "Open one PDF and make every change to it, with undo." },
     { id: "merge", name: "Merge", icon: "knot", what: "Join several PDFs into one, in the order you choose." },
     { id: "split", name: "Split", icon: "crab", what: "Break a PDF apart by page ranges or every few pages." },
@@ -12,7 +11,7 @@ export const PIERS = [
     { id: "n-up", name: "Pages per sheet", icon: "pennants", what: "Two, four or six pages on each printed sheet." },
     { id: "blank-pages", name: "Remove blank pages", icon: "swab", what: "Find the empty pages and take them out." },
   ] },
-  { no: "02", name: "Convert", blurb: "Change the format", tint: "--tint-2", tools: [
+  { name: "Convert", blurb: "Change the format", tint: "--tint-2", tools: [
     { id: "pdf-to-jpg", name: "PDF to JPG", icon: "porthole", what: "Every page as an image, at the size you pick." },
     { id: "extract-images", name: "Extract images", icon: "pearl", what: "Every picture inside a PDF, as its own file." },
     { id: "scan", name: "Scan with your phone", icon: "scan", what: "Photos of paper pages, straightened into a clean PDF." },
@@ -22,7 +21,7 @@ export const PIERS = [
     { id: "pdf-to-excel", name: "PDF to Excel", icon: "crate", what: "Tables into a spreadsheet, with amounts as real numbers." },
     { id: "pdf-to-text", name: "PDF to text", icon: "bottle", what: "Just the words, ready to paste." },
   ] },
-  { no: "03", name: "Edit and sign", blurb: "Mark it up and make it yours", tint: "--tint-3", tools: [
+  { name: "Edit and sign", blurb: "Mark it up and make it yours", tint: "--tint-3", tools: [
     { id: "annotate", name: "Add text and marks", icon: "quill", what: "Type on any PDF, highlight, white out, tick boxes." },
     { id: "sign", name: "Sign", icon: "anchor", what: "Draw or type a signature and place it on the page." },
     { id: "fill-form", name: "Fill a form", icon: "lifebuoy", what: "Type into any form, even a scan or a flat PDF: Docket finds the blanks and tick boxes." },
@@ -30,24 +29,24 @@ export const PIERS = [
     { id: "page-numbers", name: "Page numbers", icon: "compass", what: "Add numbers where you want them." },
     { id: "watermark", name: "Watermark", icon: "wave", what: "Stamp text across every page." },
   ] },
-  { no: "04", name: "Protect", blurb: "Keep what's private, private", tint: "--tint-4", tools: [
+  { name: "Protect", blurb: "Keep what's private, private", tint: "--tint-4", tools: [
     { id: "redact", name: "Redact", icon: "octopus", what: "Black out text for real, then check it's gone." },
     { id: "password", name: "Password", icon: "chest", what: "Lock a PDF, or unlock one you have the password for." },
     { id: "metadata", name: "Clean for sharing", icon: "jelly", what: "Strip hidden details, comments, attachments and scripts before you send it." },
     { id: "verify", name: "Verify", icon: "seal", what: "Check a PDF is exactly the file you expect, and read back a signing certificate." },
   ] },
-  { no: "05", name: "Shrink and fix", blurb: "Smaller, cleaner files", tint: "--tint-5", tools: [
+  { name: "Shrink and fix", blurb: "Smaller, cleaner files", tint: "--tint-5", tools: [
     { id: "compress", name: "Compress", icon: "puffer", what: "Make a scanned PDF small enough to email or upload." },
     { id: "searchable", name: "Make searchable", icon: "spyglass", what: "Read the text in a scan so you can search it." },
     { id: "repair", name: "Repair PDF", icon: "marlinspike", what: "Fix a PDF that won't open or shows errors." },
     { id: "grayscale", name: "Grayscale", icon: "gull", what: "Drop the colour to save ink." },
   ] },
-  { no: "06", name: "Read", blurb: "Understand it faster", tint: "--tint-6", tools: [
+  { name: "Read", blurb: "Understand it faster", tint: "--tint-6", tools: [
     { id: "compare", name: "Compare PDFs", icon: "binoculars", what: "See every word that changed between two versions." },
     { id: "summary", name: "Summary", icon: "lighthouse", what: "The key sentences, taken word for word from the file." },
     { id: "find", name: "Find dates and amounts", icon: "net", what: "Every date, amount, email and link in one list." },
   ] },
-  { no: "07", name: "Images and makers", blurb: "The small jobs", tint: "--tint-7", tools: [
+  { name: "Images and makers", blurb: "The small jobs", tint: "--tint-7", tools: [
     { id: "convert-images", name: "Convert images", icon: "lantern", what: "HEIC, WebP or PNG into JPG, PNG or WebP, in batches." },
     { id: "enhance", name: "Enhance image", icon: "sparkle", what: "Make a small or soft picture bigger and sharper." },
     { id: "resize-image", name: "Resize image", icon: "star", what: "By pixels, percent, or presets like a passport photo." },
@@ -57,15 +56,7 @@ export const PIERS = [
   ] },
 ];
 
-// berth numbers run across all piers: B-01 is the first tool on pier 01, and so on
-let n = 0;
-for (const pier of PIERS) {
-  for (const tool of pier.tools) {
-    n += 1;
-    tool.berth = "B-" + String(n).padStart(2, "0");
-    tool.pier = pier;
-  }
-}
+for (const pier of PIERS) for (const tool of pier.tools) tool.pier = pier;
 
 export const TOOLS = PIERS.flatMap((p) => p.tools);
 export const findTool = (id) => TOOLS.find((t) => t.id === id);

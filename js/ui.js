@@ -19,7 +19,7 @@ export function bytes(n) {
 export const plural = (n, word, many = word + "s") => `${n} ${n === 1 ? word : many}`;
 
 // A drop zone styled as a bit of dock. `onFiles` gets an array of File.
-export function dock({ accept = "", multiple = false, title = "Drop files on the dock", hint = "", small = false, onFiles }) {
+export function dock({ accept = "", multiple = false, title = "Drop files here", hint = "", small = false, onFiles }) {
   const el = h(`<label class="dock${small ? " small" : ""}">
     <input type="file" ${accept ? `accept="${esc(accept)}"` : ""} ${multiple ? "multiple" : ""}>
     ${small ? svg("plus", { size: 20 }) : `<svg class="art" width="46" height="46" viewBox="0 0 46 46" stroke-width="1.6" aria-hidden="true"><path d="M14 30h18l-3 6H17zM23 8v18M17 14l6-6 6 6"/></svg>`}

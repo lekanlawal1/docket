@@ -12,7 +12,7 @@ Most free PDF sites upload your file to their server to do something your own co
 
 ## What's in it
 
-About 40 tools across seven groups: organise, convert, edit and sign, protect, shrink and fix, read, and images. There's also a Workspace that keeps one document through many changes, with undo and redo, so you download once at the end. It works offline and can be installed as an app.
+39 tools in seven groups: organise, convert, edit and sign, protect, shrink and fix, read, and images. There's also a Workspace that keeps one document through many changes, with undo and redo, so you download once at the end. It works offline and can be installed as an app.
 
 ## The parts I'm most careful about
 

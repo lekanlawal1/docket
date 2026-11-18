@@ -2,7 +2,7 @@ import { onePdf, h, esc, download, renamed, plural, busy, status } from "../ui.j
 import { readBytes, openForEdit, lib } from "../pdf.js";
 import { flatForm } from "./fill-flat.js";
 
-export const intro = "Type into a form and save it. Forms with fillable boxes are listed to fill in; a scan, photo or flat PDF works too: Docket finds the blanks and tick boxes on the page for you.";
+export const intro = "Type into any form and save it. Fillable forms work, and so do scans, photos and flat PDFs: Docket finds the blanks and tick boxes for you.";
 
 export function mount({ main, desk, files, privateNote }) {
   desk.innerHTML = `<h2>Save</h2><p>Load a PDF to begin.</p>`;

@@ -2,7 +2,7 @@ import { h, esc, dock, download, bytes, plural, status } from "../ui.js";
 import { readBytes, openForView, pageTexts } from "../pdf.js";
 import { compare, report } from "../diff.js";
 
-export const intro = "Two versions of the same document, side by side in one list: every word that was added, removed or changed, with the page it's on. Changed numbers are flagged, since those usually matter most.";
+export const intro = "Two versions of a document, compared: every word added, removed or changed, with the page it's on. Changed numbers are flagged, since those usually matter most.";
 
 const SHOW = 150;       // changes drawn at first; the rest wait behind a button
 

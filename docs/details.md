@@ -12,7 +12,7 @@ Most free PDF sites upload your file to their server to do something your own co
 
 ## What's in it
 
-| Pier | Tools |
+| Group | Tools |
 | --- | --- |
 | Organise | Workspace, Merge, Split, Organise pages, Extract pages, Crop pages, Pages per sheet, Remove blank pages |
 | Convert | PDF to JPG, Extract images, Scan with your phone, Photo to text, Images to PDF, PDF to Word, PDF to Excel, PDF to text |

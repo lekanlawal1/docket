@@ -2,7 +2,7 @@ import { onePdf, h, esc, status } from "../ui.js";
 import { readBytes, openForView, pageTexts } from "../pdf.js";
 import { sha256, grouped, cleanHex, readCertificate } from "../fingerprint.js";
 
-export const intro = "Check that a PDF is exactly the file you expect. Docket works out its fingerprint, a code that changes completely if even one character of the file changes, and compares it with one you have. Signed copies from Docket's Sign tool also carry a certificate that this reads back.";
+export const intro = "Check a PDF is exactly the file you expect. Docket works out the file's fingerprint, a code that changes if anything in the file changes, and compares it with one you have. Files signed in Docket also carry a certificate, which this reads back.";
 
 const verdict = (el, want, have, whatMatches) => {
   if (!want) return status(el, "");
