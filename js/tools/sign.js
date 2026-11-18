@@ -1,6 +1,7 @@
 import { onePdf, h, download, renamed, plural, busy, status } from "../ui.js";
 import { svg } from "../icons.js";
 import { readBytes, openForEdit, openForView, drawPage, viewports, uprightRect, uprightPoint, lib } from "../pdf.js";
+import { sha256, grouped, CERT_TITLE, ORIGINAL_LABEL } from "../fingerprint.js";
 
 export const intro = "Draw or type your signature, then tap where it goes. Initials, your name, the date, text and checkmarks go on the same way, on as many pages as you need.";
 
@@ -85,11 +86,79 @@ function textPicture(text) {
   return c;
 }
 
+// A last page that records what happened: the document, who signed and when, what went where,
+// and the fingerprint of the document as it was before anyone signed. Verify reads it back.
+async function addCertificate(doc, { StandardFonts, rgb }, info) {
+  const first = doc.getPage(0).getSize();
+  const [W, H] = first.width <= first.height ? [first.width, first.height] : [612, 792];
+  const page = doc.addPage([W, H]);
+  const regular = await doc.embedFont(StandardFonts.Helvetica), bold = await doc.embedFont(StandardFonts.HelveticaBold);
+  const mono = await doc.embedFont(StandardFonts.Courier);
+  const ink = rgb(0.08, 0.14, 0.23), grey = rgb(0.38, 0.4, 0.44), M = 64, maxW = W - M * 2;
+  let y = H - M - 10;
+  // the built-in fonts only cover Western scripts; anything else is written as a picture of the text
+  const put = async (text, x, font, size, color = ink) => {
+    try { page.drawText(text, { x, y, size, font, color }); return font.widthOfTextAtSize(text, size); }
+    catch {
+      const c = textPicture(text), img = await doc.embedPng(await (await fetch(c.toDataURL("image/png"))).arrayBuffer());
+      const h = size * 1.25, w = h * c.width / c.height;
+      page.drawImage(img, { x, y: y - size * 0.25, width: w, height: h });
+      return w;
+    }
+  };
+  const wrap = async (text, font, size, color, gap = 1.45) => {
+    let line = "";
+    for (const word of text.split(" ")) {
+      const next = line ? line + " " + word : word;
+      if (line && font.widthOfTextAtSize(next, size) > maxW) { await put(line, M, font, size, color); y -= size * gap; line = word; } else line = next;
+    }
+    if (line) { await put(line, M, font, size, color); y -= size * gap; }
+  };
+  const field = async (label, value) => {
+    const w = await put(label + ":", M, bold, 11);
+    await put(value, M + w + 5, regular, 11);
+    y -= 20;
+  };
+  await put(CERT_TITLE, M, bold, 22); y -= 22;
+  await wrap("Made by Docket in the signer's own browser. Nothing was uploaded.", regular, 10, grey); y -= 14;
+  await field("Document", info.document);
+  await field("Pages", `${info.pages}, not counting this certificate`);
+  await field("Signed by", info.signer || "Not given");
+  await field("Signed on", info.local);
+  await field("Signed on (UTC)", info.utc);
+  // the same bold label as the other rows; the list wraps under itself if it's long
+  const lw = await put("Placed:", M, bold, 11);
+  const words = info.placed.split(" ");
+  let line = "";
+  for (const word of words) {
+    const next = line ? line + " " + word : word;
+    if (line && regular.widthOfTextAtSize(next, 11) > maxW - lw - 5) { await put(line, M + lw + 5, regular, 11); y -= 16; line = word; } else line = next;
+  }
+  if (line) await put(line, M + lw + 5, regular, 11);
+  y -= 30;
+  await put(`${ORIGINAL_LABEL} (SHA-256):`, M, bold, 11); y -= 18;
+  await put(grouped(info.original), M, mono, 10); y -= 34;
+  await put("How to check this", M, bold, 12); y -= 18;
+  await wrap("Docket's Verify tool reads this page back. Give it the original document and it says whether that is the exact document that was signed. When this copy was saved, Docket also showed the signed copy's own fingerprint: keep it with your records, and Verify can later confirm the signed copy hasn't changed.", regular, 10.5, ink);
+  y -= 14;
+  await put("What this is", M, bold, 12); y -= 18;
+  await wrap("A record of what happened in the signer's browser. It isn't a certificate-based digital signature, and no outside authority has checked it.", regular, 10.5, ink);
+}
+
+// "Signature on pages 1 and 3; Date on page 1"
+function placedSummary(placed) {
+  const pages = new Map();
+  for (const p of placed) { const k = KINDS.find(([id]) => id === p.kind)[1]; pages.set(k, new Set([...(pages.get(k) || []), p.page + 1])); }
+  const list = (ns) => { const a = [...ns].sort((x, y) => x - y); return a.length === 1 ? `page ${a[0]}` : `pages ${a.slice(0, -1).join(", ")} and ${a.at(-1)}`; };
+  return [...pages].map(([k, ns]) => `${k} on ${list(ns)}`).join("; ");
+}
+
 export function mount({ main, desk, files, privateNote }) {
   desk.innerHTML = `<h2>Your signature</h2><p>Load a PDF to begin.</p>`;
 
   onePdf(main, { files, onLoad: async (file) => {
     const bytesIn = await readBytes(file);
+    const original = await sha256(bytesIn);    // before anything else touches the bytes
     const view = await openForView(bytesIn);
     let pageNo = 1, signature = null, initials = null, kind = "signature";
     const placed = [];          // { kind, page (0-based), x, y, w, h, value? } as fractions of the page
@@ -115,9 +184,12 @@ export function mount({ main, desk, files, privateNote }) {
       <label class="field">Date<input type="text" name="date" value="${today}"></label>
       <label class="field">Text<input type="text" name="text" placeholder="Anything else the form asks for"></label>
       <label class="field" style="margin-top: 14px">Size on the page<input type="range" name="size" min="10" max="60" value="28"></label>
+      <label class="check"><input type="checkbox" name="certificate" checked> Add a signing certificate page</label>
+      <p style="font-size: 13px; margin: 2px 0 12px; color: var(--muted, inherit)">A last page recording who signed, when, what went where, and the original document's fingerprint.</p>
       <p class="hint-line" style="font-size: 14px"></p>
       <button type="button" class="pill go" disabled>Save signed PDF</button>
       <p class="status" role="status"></p>
+      <div class="signed-fp" hidden></div>
       <p class="honest" style="margin-top: 14px">This places a picture of your signature, which is what most forms ask for. It isn't a certificate-based digital signature.</p>${privateNote()}`;
     const $ = (sel) => desk.querySelector(sel);
     const go = $(".go"), out = $(".status"), hint = $(".hint-line");
@@ -272,8 +344,26 @@ export function mount({ main, desk, files, privateNote }) {
           page.drawLine({ start: b, end: c, thickness, color: ink, lineCap: 1 });
         }
       }
-      download(await doc.save(), renamed(file, "-signed", "pdf"));
+      const now = new Date();
+      if ($("[name=certificate]").checked) await addCertificate(doc, await lib(), {
+        document: file.name, pages: view.numPages, signer: valueOf("name"), placed: placedSummary(placed), original,
+        local: now.toLocaleString(undefined, { dateStyle: "long", timeStyle: "short" }) + ` (${Intl.DateTimeFormat().resolvedOptions().timeZone})`,
+        utc: now.toISOString().replace(/\.\d+Z$/, "Z")
+      });
+      const saved = await doc.save(), name = renamed(file, "-signed", "pdf");
+      download(saved, name);
       status(out, `Done: ${plural(placed.length, "item")} on ${plural(new Set(placed.map((p) => p.page)).size, "page")}.`, "good");
+      // the signed copy's own fingerprint: it can't go inside the file it describes, so it's shown here to keep
+      const fp = await sha256(saved), box = $(".signed-fp");
+      box.hidden = false;
+      box.innerHTML = `<p style="margin: 14px 0 4px; font-weight: 600">Fingerprint of the signed file</p>
+        <code class="fp-code">${grouped(fp)}</code>
+        <div class="tools-row" style="margin-top: 8px; gap: 8px"><button type="button" class="pill ghost" data-copy>Copy</button><button type="button" class="pill ghost" data-save>Save as text</button></div>
+        <p style="font-size: 13px; margin-top: 8px">Keep it with your records. Docket's Verify tool can use it later to confirm this exact file hasn't changed.</p>`;
+      box.querySelector("[data-copy]").onclick = async (e) => { await navigator.clipboard?.writeText(fp).catch(() => {}); e.target.textContent = "Copied"; };
+      box.querySelector("[data-save]").onclick = () => download(new Blob([
+        `Signed copy: ${name}\nFingerprint (SHA-256): ${fp}\nSaved: ${now.toISOString()}\n` +
+        `Check it with Docket's Verify tool: ${location.origin}${location.pathname}#/verify\n`], { type: "text/plain" }), renamed(file, "-signed-fingerprint", "txt"), "text/plain");
     }));
   } });
 }

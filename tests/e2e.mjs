@@ -1,7 +1,8 @@
 // Drives every tool in a real browser with generated files and checks what comes out.
 // Run: node tests/e2e.mjs   (needs Playwright; set PW to its index.mjs if it isn't installed locally)
 import { createServer } from "node:http";
-import { readFile, mkdtemp } from "node:fs/promises";
+import { readFile, writeFile, mkdtemp } from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { tmpdir } from "node:os";
 import { join, extname } from "node:path";
 import { makeFixtures } from "./fixtures.mjs";
@@ -262,7 +263,7 @@ await check("sign (typed, placed on page 1)", async () => {
   await page.fill("[name=typed]", "Jordan Example");
   await page.waitForSelector(".stage canvas");
   await page.locator(".stage canvas").click({ position: { x: 150, y: 300 } });
-  expect((await readPdf((await save()).data)).pages === 4, "wrong page count");
+  expect((await readPdf((await save()).data)).pages === 5, "expected the 4 pages plus the signing certificate");
 });
 
 await check("sign: initials, full name, date, text and a checkmark, with name, date and text kept as real text", async () => {
@@ -282,8 +283,42 @@ await check("sign: initials, full name, date, text and a checkmark, with name, d
   expect(await page.locator(".stage .sig").count() === 6, "not every field was placed");
   const { data } = await save();
   const { pages, texts } = await readPdf(data);
-  expect(pages === 4, "wrong page count");
+  expect(pages === 5, "expected the 4 pages plus the signing certificate");
   for (const want of ["Jordan Example", "November 17, 2026", "Unit 4B"]) expect(texts[0].includes(want), `"${want}" isn't text on page 1`);
+});
+
+await check("sign adds a signing certificate; Verify checks the signed copy and the original against it", async () => {
+  const hex = (b) => createHash("sha256").update(b).digest("hex");
+  await open("sign", [lease]);
+  await page.click("[data-tab=type]");
+  await page.fill("[name=typed]", "Jordan Example");
+  await page.fill("[name=fullname]", "Jordan Example");
+  await page.waitForSelector(".stage canvas");
+  await page.locator(".stage canvas").click({ position: { x: 150, y: 300 } });
+  const { data } = await save();
+  const { pages, texts } = await readPdf(data);
+  expect(pages === 5, "no certificate page");
+  const cert = texts[4];
+  expect(cert.includes("Signing certificate") && cert.includes("Signed by: Jordan Example") && /Placed: Signature on page 1/.test(cert), "certificate text is wrong: " + cert.slice(0, 300));
+  expect(cert.replace(/[^0-9a-f]/g, "").includes(hex(await readFile(lease))), "the certificate doesn't carry the original's fingerprint");
+  const shown = (await page.textContent(".signed-fp code")).replace(/\s/g, "");
+  expect(shown === hex(data), "the fingerprint shown isn't the saved file's");
+
+  const signed = join(fx, "lease-signed.pdf");
+  await writeFile(signed, data);
+  await open("verify", [signed]);
+  await page.waitForSelector("[name=want]");
+  const code = (await page.textContent(".verify-fp code")).replace(/\s/g, "");
+  expect(code === hex(data), "Verify shows the wrong fingerprint");
+  await page.fill("[name=want]", "Fingerprint (SHA-256): " + shown);
+  expect(await page.locator("[data-out=file].good").count() === 1, "a matching fingerprint (with its label pasted too) isn't a match");
+  await page.fill("[name=want]", shown.slice(0, -1) + (shown.endsWith("0") ? "1" : "0"));
+  expect(await page.locator("[data-out=file].bad").count() === 1, "a changed fingerprint still matches");
+  expect((await page.textContent(".desk")).includes("Jordan Example"), "the certificate wasn't read back");
+  await page.setInputFiles("[name=original]", lease);
+  await page.waitForSelector("[data-out=original].good");
+  await page.setInputFiles("[name=original]", second);
+  await page.waitForSelector("[data-out=original].bad");
 });
 
 await check("add text and marks: in the right place, upright on a rotated page", async () => {

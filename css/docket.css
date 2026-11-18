@@ -119,6 +119,12 @@ svg.art { fill: none; stroke: var(--line-art); stroke-linecap: round; stroke-lin
 }
 .pill:disabled { opacity: .45; cursor: not-allowed; }
 .pill.ghost { background: transparent; color: var(--ink-strong); border: 1px solid var(--field-line); }
+/* native file pickers (Verify) dressed as ghost pills, so they match every other button */
+.field input[type=file] { font: inherit; font-size: 14px; color: var(--muted, inherit); }
+.field input[type=file]::file-selector-button { min-height: 40px; margin-right: 10px; padding: 0 16px; border-radius: 999px; border: 1px solid var(--field-line);
+  background: transparent; color: var(--ink-strong); font: 600 14px/1 inherit; cursor: pointer; }
+/* fingerprints wrap between their groups of four, never inside one */
+.fp-code { display: block; font: 13px/1.6 ui-monospace, Menlo, monospace; word-break: normal; overflow-wrap: normal; font-variant-numeric: tabular-nums; }
 
 /* the water, and the boat that floats on it */
 .water { display: block; width: 100%; height: 64px; margin-top: 10px; overflow: visible; }

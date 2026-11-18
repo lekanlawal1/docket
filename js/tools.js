@@ -34,6 +34,7 @@ export const PIERS = [
     { id: "redact", name: "Redact", icon: "octopus", what: "Black out text for real, then check it's gone." },
     { id: "password", name: "Password", icon: "chest", what: "Lock a PDF, or unlock one you have the password for." },
     { id: "metadata", name: "Clean for sharing", icon: "jelly", what: "Strip hidden details, comments, attachments and scripts before you send it." },
+    { id: "verify", name: "Verify", icon: "seal", what: "Check a PDF is exactly the file you expect, and read back a signing certificate." },
   ] },
   { no: "05", name: "Shrink and fix", blurb: "Smaller, cleaner files", tint: "--tint-5", tools: [
     { id: "compress", name: "Compress", icon: "puffer", what: "Make a scanned PDF small enough to email or upload." },
